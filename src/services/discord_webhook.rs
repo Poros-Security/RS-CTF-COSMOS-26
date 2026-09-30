@@ -185,23 +185,125 @@ fn safe_discord_text(value: &str, maximum: usize) -> String {
 }
 
 fn delivery_payload(job: &LeasedDelivery) -> Result<Value, &'static str> {
-    let (title, color) = match job.notice_type {
-        value if value == NoticeType::FirstBlood as i16 => ("🩸 First Blood", 0xed_42_45),
-        value if value == NoticeType::SecondBlood as i16 => ("🥈 Second Blood", 0x99_aab5),
-        value if value == NoticeType::ThirdBlood as i16 => ("🥉 Third Blood", 0xcd_7f32),
+    let (title, color, description) = match job.notice_type {
+        value if value == NoticeType::FirstBlood as i16 => {
+            let values = job.values.as_array().ok_or("invalid_notice_values")?;
+            let team = safe_discord_text(
+                values
+                    .first()
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                200,
+            );
+            let challenge = safe_discord_text(
+                values
+                    .get(1)
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                300,
+            );
+            ("🩸 First Blood", 0xed_42_45, format!("**{team}** solved **{challenge}**."))
+        }
+        value if value == NoticeType::SecondBlood as i16 => {
+            let values = job.values.as_array().ok_or("invalid_notice_values")?;
+            let team = safe_discord_text(
+                values
+                    .first()
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                200,
+            );
+            let challenge = safe_discord_text(
+                values
+                    .get(1)
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                300,
+            );
+            ("🥈 Second Blood", 0x99_aab5, format!("**{team}** solved **{challenge}**."))
+        }
+        value if value == NoticeType::ThirdBlood as i16 => {
+            let values = job.values.as_array().ok_or("invalid_notice_values")?;
+            let team = safe_discord_text(
+                values
+                    .first()
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                200,
+            );
+            let challenge = safe_discord_text(
+                values
+                    .get(1)
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                300,
+            );
+            ("🥉 Third Blood", 0xcd_7f32, format!("**{team}** solved **{challenge}**."))
+        }
+        value if value == NoticeType::AdFirstBlood as i16 => {
+            let values = job.values.as_array().ok_or("invalid_notice_values")?;
+            let team = safe_discord_text(
+                values
+                    .first()
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                200,
+            );
+            let challenge = safe_discord_text(
+                values
+                    .get(1)
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                300,
+            );
+            let round = values
+                .get(2)
+                .and_then(Value::as_i64)
+                .map(|r| r.to_string())
+                .or_else(|| values.get(2).and_then(Value::as_str).map(|s| s.to_string()))
+                .unwrap_or_else(|| "?".to_string());
+            (
+                "🩸 First Exploit!",
+                0xe7_4c_3c,
+                format!("**{team}** scored the **FIRST EXPLOIT** on **{challenge}** (Round #{round})!"),
+            )
+        }
+        value if value == NoticeType::AdFullSweep as i16 => {
+            let values = job.values.as_array().ok_or("invalid_notice_values")?;
+            let team = safe_discord_text(
+                values
+                    .first()
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                200,
+            );
+            let challenge = safe_discord_text(
+                values
+                    .get(1)
+                    .and_then(Value::as_str)
+                    .ok_or("invalid_notice_values")?,
+                300,
+            );
+            let round = values
+                .get(2)
+                .and_then(Value::as_i64)
+                .map(|r| r.to_string())
+                .or_else(|| values.get(2).and_then(Value::as_str).map(|s| s.to_string()))
+                .unwrap_or_else(|| "?".to_string());
+            let victim_count = values
+                .get(3)
+                .and_then(Value::as_i64)
+                .map(|v| v.to_string())
+                .or_else(|| values.get(3).and_then(Value::as_str).map(|s| s.to_string()))
+                .unwrap_or_else(|| "all".to_string());
+            (
+                "⚔️ Full Sweep!",
+                0x9b_59_b6,
+                format!("💥 **{team}** exploited **ALL {victim_count} opposing teams** on **{challenge}** in Round #{round}!"),
+            )
+        }
         _ => return Err("unsupported_notice_type"),
     };
-    let values = job.values.as_array().ok_or("invalid_notice_values")?;
-    let team = values
-        .first()
-        .and_then(Value::as_str)
-        .ok_or("invalid_notice_values")?;
-    let challenge = values
-        .get(1)
-        .and_then(Value::as_str)
-        .ok_or("invalid_notice_values")?;
-    let team = safe_discord_text(team, 200);
-    let challenge = safe_discord_text(challenge, 300);
     let mut game = safe_discord_text(&job.game_title, 300);
     if game.trim().is_empty() {
         game = "Untitled event".to_string();
@@ -212,7 +314,7 @@ fn delivery_payload(job: &LeasedDelivery) -> Result<Value, &'static str> {
         "allowed_mentions": { "parse": [] },
         "embeds": [{
             "title": title,
-            "description": format!("**{team}** solved **{challenge}**."),
+            "description": description,
             "color": color,
             "fields": [{ "name": "Event", "value": game, "inline": false }],
             "timestamp": job.publish_time_utc.to_rfc3339(),
@@ -347,13 +449,13 @@ async fn send(job: &LeasedDelivery) -> DeliveryDisposition {
 /// transaction tail short so a committed successor can never overtake an
 /// invisible predecessor.
 pub async fn lock_game_blood_notice_order(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    connection: &mut sqlx::PgConnection,
     game_id: i32,
 ) -> AppResult<()> {
     sqlx::query("SELECT pg_advisory_xact_lock($1, $2)")
         .bind(BLOOD_NOTICE_LOCK_NAMESPACE)
         .bind(game_id)
-        .execute(&mut **transaction)
+        .execute(&mut *connection)
         .await
         .map_err(|error| AppError::internal(error.to_string()))?;
     Ok(())
@@ -362,7 +464,7 @@ pub async fn lock_game_blood_notice_order(
 /// Enqueue delivery in the same transaction as the canonical game notice. A
 /// blank webhook intentionally creates no row. `ON CONFLICT` makes replay safe.
 pub async fn enqueue_blood_notice(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    connection: &mut sqlx::PgConnection,
     notice_id: i32,
     game_id: i32,
     available_at_utc: DateTime<Utc>,
@@ -389,7 +491,7 @@ pub async fn enqueue_blood_notice(
     .bind(notice_id)
     .bind(game_id)
     .bind(available_at_utc)
-    .execute(&mut **transaction)
+    .execute(&mut *connection)
     .await
     .map_err(|error| AppError::internal(error.to_string()))?;
     Ok(inserted.rows_affected() == 1)
@@ -399,7 +501,7 @@ pub async fn enqueue_blood_notice(
 /// window. Explicit deferral state distinguishes retries postponed by a freeze
 /// from ordinary backoff that happens to share an event timestamp.
 pub async fn reschedule_game_blood_notices(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    connection: &mut sqlx::PgConnection,
     game_id: i32,
     old_freeze_time_utc: Option<DateTime<Utc>>,
     old_end_time_utc: DateTime<Utc>,

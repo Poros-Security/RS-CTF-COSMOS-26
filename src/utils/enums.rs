@@ -80,7 +80,8 @@ db_enum!(
 db_enum!(
     NoticeType {
         Normal = 0, FirstBlood = 1, SecondBlood = 2, ThirdBlood = 3,
-        NewHint = 4, NewChallenge = 5
+        NewHint = 4, NewChallenge = 5,
+        AdFirstBlood = 6, AdFullSweep = 7
     }
 );
 

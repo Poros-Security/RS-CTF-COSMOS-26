@@ -98,6 +98,30 @@ fn payload_blocks_mentions_and_escapes_untrusted_markdown() {
 }
 
 #[test]
+fn ad_payloads_format_first_blood_and_full_sweep() {
+    let mut ad_blood_job = leased(NoticeType::AdFirstBlood);
+    ad_blood_job.values = json!(["Team Alpha", "web-banking", 5]);
+    ad_blood_job.game_title = "AD Championship".to_string();
+    let payload = delivery_payload(&ad_blood_job).unwrap();
+    assert_eq!(payload["embeds"][0]["title"], "🩸First Exploit!");
+    let desc = payload["embeds"][0]["description"].as_str().unwrap();
+    assert!(desc.contains("Team Alpha"));
+    assert!(desc.contains("web-banking"));
+    assert!(desc.contains("Round #5"));
+
+    let mut sweep_job = leased(NoticeType::AdFullSweep);
+    sweep_job.values = json!(["Team Beta", "pwn-router", 12, 8]);
+    sweep_job.game_title = "AD Championship".to_string();
+    let sweep_payload = delivery_payload(&sweep_job).unwrap();
+    assert_eq!(sweep_payload["embeds"][0]["title"], "⚔️ Full Sweep!");
+    let sweep_desc = sweep_payload["embeds"][0]["description"].as_str().unwrap();
+    assert!(sweep_desc.contains("Team Beta"));
+    assert!(sweep_desc.contains("ALL 8 opposing teams"));
+    assert!(sweep_desc.contains("pwn-router"));
+    assert!(sweep_desc.contains("Round #12"));
+}
+
+#[test]
 fn retry_policy_is_bounded_and_distinguishes_permanent_rejection() {
     for attempts in 1..10_000 {
         assert!((2..=MAX_RETRY_SECONDS).contains(&retry_delay(attempts)));

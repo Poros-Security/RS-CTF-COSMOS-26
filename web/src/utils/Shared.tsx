@@ -38,6 +38,7 @@ import {
   mdiRobotLoveOutline,
   mdiSearchWeb,
   mdiSecurityNetwork,
+  mdiSwordCross,
   mdiWeb,
   mdiWebCancel,
   mdiWebCheck,
@@ -373,6 +374,8 @@ export const NoticTypeIconMap = (size: number) => {
       [NoticeType.FirstBlood, iconMap.get(SubmissionType.FirstBlood)],
       [NoticeType.SecondBlood, iconMap.get(SubmissionType.SecondBlood)],
       [NoticeType.ThirdBlood, iconMap.get(SubmissionType.ThirdBlood)],
+      [NoticeType.AdFirstBlood, { path: mdiBomb, size: size, color: theme.colors.red[colorIdx] }],
+      [NoticeType.AdFullSweep, { path: mdiSwordCross, size: size, color: theme.colors.grape[colorIdx] }],
     ])
   }, [theme, colorScheme, size, iconMap])
 

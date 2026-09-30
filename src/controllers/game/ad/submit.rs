@@ -69,6 +69,7 @@ const ACCEPTED_ATTACK_SQL: &str = r#"
     -- bounded to one row, so candidate has cardinality zero or one.
     ), candidate AS (
         SELECT latest.id AS round_id,
+               latest.number AS round_number,
                attacker.id AS attacker_participation_id,
                service.id AS victim_team_service_id,
                planted.id AS flag_id,
@@ -124,12 +125,14 @@ const ACCEPTED_ATTACK_SQL: &str = r#"
         SELECT round_id, attacker_participation_id, victim_team_service_id, flag_id, submitted_at
           FROM candidate
         ON CONFLICT (attacker_participation_id, flag_id) DO NOTHING
-        RETURNING id, victim_team_service_id, flag_id
+        RETURNING id, round_id, attacker_participation_id, victim_team_service_id, flag_id
     )
     SELECT candidate.broadcast_ok,
            candidate.attacker_team,
            candidate.victim_team,
            candidate.challenge_title,
+           candidate.round_number,
+           candidate.challenge_id,
            CASE WHEN candidate.broadcast_ok THEN NOT EXISTS (
                SELECT 1
                  FROM "AdAttacks" prior_attack
@@ -139,7 +142,75 @@ const ACCEPTED_ATTACK_SQL: &str = r#"
                   AND prior_service.game_id = $4
                   AND prior_service.challenge_id = candidate.challenge_id
                   AND prior_service.participation_id = candidate.victim_participation_id
-           ) ELSE FALSE END AS first_blood
+           ) ELSE FALSE END AS first_blood,
+           CASE WHEN candidate.broadcast_ok THEN NOT EXISTS (
+               SELECT 1
+                 FROM "AdAttacks" prior_attack
+                 JOIN "AdTeamServices" prior_service
+                   ON prior_service.id = prior_attack.victim_team_service_id
+                WHERE prior_attack.id <> inserted.id
+                  AND prior_service.game_id = $4
+                  AND prior_service.challenge_id = candidate.challenge_id
+           ) ELSE FALSE END AS challenge_first_blood,
+           CASE WHEN candidate.broadcast_ok THEN (
+               (
+                   SELECT COUNT(DISTINCT victim_svc.participation_id)
+                     FROM "AdAttacks" cur_attack
+                     JOIN "AdTeamServices" victim_svc
+                       ON victim_svc.id = cur_attack.victim_team_service_id
+                    WHERE cur_attack.attacker_participation_id = candidate.attacker_participation_id
+                      AND cur_attack.round_id = candidate.round_id
+                      AND victim_svc.challenge_id = candidate.challenge_id
+               ) >= (
+                   SELECT COUNT(DISTINCT all_svc.participation_id)
+                     FROM "AdTeamServices" all_svc
+                     JOIN "Participations" all_p
+                       ON all_p.id = all_svc.participation_id
+                      AND all_p.status = $5
+                    WHERE all_svc.game_id = $4
+                      AND all_svc.challenge_id = candidate.challenge_id
+                      AND all_svc.participation_id <> candidate.attacker_participation_id
+               )
+               AND (
+                   SELECT COUNT(DISTINCT all_svc.participation_id)
+                     FROM "AdTeamServices" all_svc
+                     JOIN "Participations" all_p
+                       ON all_p.id = all_svc.participation_id
+                      AND all_p.status = $5
+                    WHERE all_svc.game_id = $4
+                      AND all_svc.challenge_id = candidate.challenge_id
+                      AND all_svc.participation_id <> candidate.attacker_participation_id
+               ) > 0
+               AND (
+                   SELECT COUNT(DISTINCT victim_svc.participation_id)
+                     FROM "AdAttacks" cur_attack
+                     JOIN "AdTeamServices" victim_svc
+                       ON victim_svc.id = cur_attack.victim_team_service_id
+                    WHERE cur_attack.attacker_participation_id = candidate.attacker_participation_id
+                      AND cur_attack.round_id = candidate.round_id
+                      AND victim_svc.challenge_id = candidate.challenge_id
+                      AND cur_attack.id <> inserted.id
+               ) < (
+                   SELECT COUNT(DISTINCT all_svc.participation_id)
+                     FROM "AdTeamServices" all_svc
+                     JOIN "Participations" all_p
+                       ON all_p.id = all_svc.participation_id
+                      AND all_p.status = $5
+                    WHERE all_svc.game_id = $4
+                      AND all_svc.challenge_id = candidate.challenge_id
+                      AND all_svc.participation_id <> candidate.attacker_participation_id
+               )
+           ) ELSE FALSE END AS full_sweep,
+           COALESCE((
+               SELECT COUNT(DISTINCT all_svc.participation_id)::integer
+                 FROM "AdTeamServices" all_svc
+                 JOIN "Participations" all_p
+                   ON all_p.id = all_svc.participation_id
+                  AND all_p.status = $5
+                WHERE all_svc.game_id = $4
+                  AND all_svc.challenge_id = candidate.challenge_id
+                  AND all_svc.participation_id <> candidate.attacker_participation_id
+           ), 0) AS total_opponents
       FROM inserted
       JOIN candidate
         ON candidate.victim_team_service_id = inserted.victim_team_service_id
@@ -600,12 +671,17 @@ fn require_active_victim(
 }
 
 #[derive(Debug, PartialEq, Eq, sqlx::FromRow)]
-struct AcceptedAttack {
-    broadcast_ok: bool,
-    attacker_team: String,
-    victim_team: Option<String>,
-    challenge_title: String,
-    first_blood: bool,
+pub(super) struct AcceptedAttack {
+    pub(super) broadcast_ok: bool,
+    pub(super) attacker_team: String,
+    pub(super) victim_team: Option<String>,
+    pub(super) challenge_title: String,
+    pub(super) round_number: i32,
+    pub(super) challenge_id: i32,
+    pub(super) first_blood: bool,
+    pub(super) challenge_first_blood: bool,
+    pub(super) full_sweep: bool,
+    pub(super) total_opponents: i32,
 }
 
 async fn insert_accepted_attack_on(
@@ -791,6 +867,76 @@ async fn submit_one(
         } else {
             "Normal"
         };
+
+        if inserted.challenge_first_blood {
+            crate::services::discord_webhook::lock_game_blood_notice_order(
+                connection,
+                game_id,
+            )
+            .await?;
+            let values = serde_json::json!([
+                inserted.attacker_team,
+                inserted.challenge_title,
+                inserted.round_number
+            ]);
+            let publish_time = Utc::now();
+            let notice_id: i32 = sqlx::query_scalar(
+                r#"INSERT INTO "GameNotices"
+                     (game_id, "Type", "values", publish_time_utc)
+                   VALUES ($1, $2, $3, $4)
+                   RETURNING id"#,
+            )
+            .bind(game_id)
+            .bind(NoticeType::AdFirstBlood as i16)
+            .bind(sqlx::types::Json(&values))
+            .bind(publish_time)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| AppError::internal(error.to_string()))?;
+            crate::services::discord_webhook::enqueue_blood_notice(
+                connection,
+                notice_id,
+                game_id,
+                publish_time,
+            )
+            .await?;
+        }
+
+        if inserted.full_sweep {
+            crate::services::discord_webhook::lock_game_blood_notice_order(
+                connection,
+                game_id,
+            )
+            .await?;
+            let values = serde_json::json!([
+                inserted.attacker_team,
+                inserted.challenge_title,
+                inserted.round_number,
+                inserted.total_opponents
+            ]);
+            let publish_time = Utc::now();
+            let notice_id: i32 = sqlx::query_scalar(
+                r#"INSERT INTO "GameNotices"
+                     (game_id, "Type", "values", publish_time_utc)
+                   VALUES ($1, $2, $3, $4)
+                   RETURNING id"#,
+            )
+            .bind(game_id)
+            .bind(NoticeType::AdFullSweep as i16)
+            .bind(sqlx::types::Json(&values))
+            .bind(publish_time)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| AppError::internal(error.to_string()))?;
+            crate::services::discord_webhook::enqueue_blood_notice(
+                connection,
+                notice_id,
+                game_id,
+                publish_time,
+            )
+            .await?;
+        }
+
         return Ok(SubmitOneResult {
             decision: ("accepted", planted),
             broadcast: Some(PendingAttackBroadcast {

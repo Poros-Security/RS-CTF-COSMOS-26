@@ -22,7 +22,9 @@ const sourceFiles = (directory: string, files: string[] = []): string[] => {
 test('every event settings update owns a retry-stable operation ID', () => {
   const allCallers = sourceFiles('src')
     .flatMap((path) =>
-      [...readFileSync(path, 'utf8').matchAll(/api\.edit\.editUpdateGame\(/g)].map(() => relative('.', path))
+      [...readFileSync(path, 'utf8').matchAll(/api\.edit\.editUpdateGame\(/g)].map(() =>
+        relative('.', path).replace(/\\/g, '/')
+      )
     )
     .sort()
 

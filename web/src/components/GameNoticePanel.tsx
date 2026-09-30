@@ -38,7 +38,9 @@ const ApplyFilter = (notices: readonly GameNotice[], filter: NoticeFilter) => {
         (notice) =>
           notice.type === NoticeType.FirstBlood ||
           notice.type === NoticeType.SecondBlood ||
-          notice.type === NoticeType.ThirdBlood
+          notice.type === NoticeType.ThirdBlood ||
+          notice.type === NoticeType.AdFirstBlood ||
+          notice.type === NoticeType.AdFullSweep
       )
     case NoticeFilter.Game:
       return notices.filter((notice) => notice.type === NoticeType.Normal)
@@ -76,6 +78,21 @@ const formatNotice = (t: TFunction, notice: GameNotice) => {
         team: notice.values.at(0),
         chal: notice.values.at(1),
         blood: t('challenge.bonus.third_blood'),
+      })
+    case NoticeType.AdFirstBlood:
+      return t('game.notice.ad_first_blood', {
+        team: notice.values.at(0),
+        chal: notice.values.at(1),
+        round: notice.values.at(2),
+        defaultValue: `${notice.values.at(0)} scored First Exploit on ${notice.values.at(1)} (Round #${notice.values.at(2)})!`,
+      })
+    case NoticeType.AdFullSweep:
+      return t('game.notice.ad_full_sweep', {
+        team: notice.values.at(0),
+        chal: notice.values.at(1),
+        round: notice.values.at(2),
+        victims: notice.values.at(3),
+        defaultValue: `${notice.values.at(0)} achieved Full Sweep (${notice.values.at(3)} teams) on ${notice.values.at(1)} in Round #${notice.values.at(2)}!`,
       })
     default:
       return notice.values.at(-1) || ''

@@ -257,7 +257,9 @@ pub async fn notices(
                     Condition::all()
                         .add(game_notice::Column::NoticeType.ne(NoticeType::FirstBlood))
                         .add(game_notice::Column::NoticeType.ne(NoticeType::SecondBlood))
-                        .add(game_notice::Column::NoticeType.ne(NoticeType::ThirdBlood)),
+                        .add(game_notice::Column::NoticeType.ne(NoticeType::ThirdBlood))
+                        .add(game_notice::Column::NoticeType.ne(NoticeType::AdFirstBlood))
+                        .add(game_notice::Column::NoticeType.ne(NoticeType::AdFullSweep)),
                 ),
         );
     }
