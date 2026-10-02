@@ -28,6 +28,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: rsctf_test
+          POSTGRES_INITDB_ARGS: "--no-sync -c fsync=off -c synchronous_commit=off -c full_page_writes=off"
         ports:
           - 5432:5432
         options: >-
@@ -35,9 +36,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
-          -c fsync=off
-          -c synchronous_commit=off
-          -c full_page_writes=off
     env:
       RSCTF_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rsctf_test
     steps:
@@ -106,6 +104,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: rsctf_test
+          POSTGRES_INITDB_ARGS: "--no-sync -c fsync=off -c synchronous_commit=off -c full_page_writes=off"
         ports:
           - 5432:5432
         options: >-
@@ -113,9 +112,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
-          -c fsync=off
-          -c synchronous_commit=off
-          -c full_page_writes=off
       redis:
         image: redis:8-alpine
         ports:
@@ -563,6 +559,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: rsctf_cheat_acceptance_test
+          POSTGRES_INITDB_ARGS: "--no-sync -c fsync=off -c synchronous_commit=off -c full_page_writes=off"
         ports:
           - 5432:5432
         options: >-
