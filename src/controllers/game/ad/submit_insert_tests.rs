@@ -307,3 +307,25 @@ async fn insert_uses_statement_time_across_game_window_boundaries() {
 
     fixture.cleanup().await;
 }
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL via RSCTF_TEST_DATABASE_URL"]
+async fn accepted_insert_triggers_full_sweep_on_last_opponent_capture() {
+    let fixture = Fixture::create().await;
+
+    // First opponent victim-a (service 200) on service-a (total 2 opponents: victim-a and victim-b)
+    let first = fixture.insert(200, 400).await.unwrap();
+    assert!(first.broadcast_ok);
+    assert_eq!(first.challenge_title, "service-a");
+    assert!(!first.full_sweep, "first capture must not be a full sweep");
+    assert_eq!(first.total_opponents, 2);
+
+    // Second opponent victim-b (service 201) on service-a
+    let second = fixture.insert(201, 402).await.unwrap();
+    assert!(second.broadcast_ok);
+    assert_eq!(second.challenge_title, "service-a");
+    assert!(second.full_sweep, "second capture must complete the full sweep across all 2 opponents");
+    assert_eq!(second.total_opponents, 2);
+
+    fixture.cleanup().await;
+}

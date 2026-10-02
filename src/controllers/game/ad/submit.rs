@@ -2,6 +2,7 @@
 
 use super::*;
 use axum::response::{IntoResponse, Response};
+use crate::utils::enums::NoticeType;
 
 /// RSCTF `Game.AdFlagLifetimeTicks` fallback — a flag planted in round `N` stays
 /// submittable while the live round number is `< N + lifetime`. Used only when
@@ -154,13 +155,18 @@ const ACCEPTED_ATTACK_SQL: &str = r#"
            ) ELSE FALSE END AS challenge_first_blood,
            CASE WHEN candidate.broadcast_ok THEN (
                (
-                   SELECT COUNT(DISTINCT victim_svc.participation_id)
-                     FROM "AdAttacks" cur_attack
-                     JOIN "AdTeamServices" victim_svc
-                       ON victim_svc.id = cur_attack.victim_team_service_id
-                    WHERE cur_attack.attacker_participation_id = candidate.attacker_participation_id
-                      AND cur_attack.round_id = candidate.round_id
-                      AND victim_svc.challenge_id = candidate.challenge_id
+                   SELECT COUNT(DISTINCT victim_id)
+                     FROM (
+                         SELECT victim_svc.participation_id AS victim_id
+                           FROM "AdAttacks" cur_attack
+                           JOIN "AdTeamServices" victim_svc
+                             ON victim_svc.id = cur_attack.victim_team_service_id
+                          WHERE cur_attack.attacker_participation_id = candidate.attacker_participation_id
+                            AND cur_attack.round_id = candidate.round_id
+                            AND victim_svc.challenge_id = candidate.challenge_id
+                         UNION
+                         SELECT candidate.victim_participation_id AS victim_id
+                     ) distinct_victims
                ) >= (
                    SELECT COUNT(DISTINCT all_svc.participation_id)
                      FROM "AdTeamServices" all_svc

@@ -74,7 +74,10 @@ services:
       start_interval: 5s
 
   rsctf:
-    image: ${RSCTF_IMAGE:?Set RSCTF_IMAGE to an immutable ghcr.io/dimasma0305/rsctf@sha256 digest}
+    image: ${RSCTF_IMAGE:-rsctf:local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
     restart: unless-stopped
     logging:
       driver: local
