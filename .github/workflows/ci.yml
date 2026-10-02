@@ -142,6 +142,7 @@ jobs:
       - name: Restore coverage build cache
         uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
+          workspaces: . -> target/llvm-cov-target
           shared-key: coverage
 
       - name: Install cargo-llvm-cov
