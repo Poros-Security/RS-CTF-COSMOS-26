@@ -14,6 +14,7 @@ import {
   NumberInput,
   Pagination,
   Paper,
+  PasswordInput,
   SimpleGrid,
   Stack,
   Switch,
@@ -30,6 +31,7 @@ import {
   mdiClockOutline,
   mdiDeleteOutline,
   mdiPause,
+  mdiPencilOutline,
   mdiPlay,
   mdiPlus,
   mdiRefresh,
@@ -157,6 +159,10 @@ const RepoBindings: FC = () => {
   const [historyRequestedPage, setHistoryRequestedPage] = useState(1)
   const [historyTotal, setHistoryTotal] = useState(0)
   const [historyPaginated, setHistoryPaginated] = useState(false)
+  const [editTarget, setEditTarget] = useState<RepoBindingInfoModel | null>(null)
+  const [editRefValue, setEditRefValue] = useState('')
+  const [editGithubToken, setEditGithubToken] = useState('')
+  const [editIntervalSeconds, setEditIntervalSeconds] = useState<number | string>(60)
   const historyOwner = useRef<{ generation: number; controller: AbortController | null }>({
     generation: 0,
     controller: null,
@@ -296,6 +302,37 @@ const RepoBindings: FC = () => {
     setBusy(true)
     try {
       await api.admin.adminUpdateRepoBinding(b.id, { pushOnEdit: !b.pushOnEdit })
+      mutate()
+    } catch (e) {
+      showErrorMsg(e, t)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onOpenEdit = (b: RepoBindingInfoModel) => {
+    setEditTarget(b)
+    setEditRefValue(b.ref ?? '')
+    setEditGithubToken('')
+    setEditIntervalSeconds(b.intervalSeconds)
+  }
+
+  const onSaveEdit = async () => {
+    if (!editTarget || busy) return
+    setBusy(true)
+    try {
+      await api.admin.adminUpdateRepoBinding(editTarget.id, {
+        ref: editRefValue || null,
+        intervalSeconds: Number(editIntervalSeconds) || 60,
+        githubToken: editGithubToken ? editGithubToken : undefined,
+      })
+      showNotification({
+        color: 'teal',
+        title: t('admin.notification.repo_binding.updated', 'Repository binding updated'),
+        message: t('admin.notification.repo_binding.updated_msg', 'Binding settings saved successfully.'),
+        icon: <Icon path={mdiCheck} size={1} />,
+      })
+      setEditTarget(null)
       mutate()
     } catch (e) {
       showErrorMsg(e, t)
@@ -561,6 +598,16 @@ const RepoBindings: FC = () => {
                             <Icon path={b.status === 'Active' ? mdiPause : mdiPlay} size={1} />
                           </ActionIcon>
                         </Tooltip>
+                        <Tooltip label={t('admin.button.repo_binding.edit', 'Edit')}>
+                          <ActionIcon
+                            variant="subtle"
+                            disabled={busy}
+                            aria-label={t('admin.button.repo_binding.edit', 'Edit')}
+                            onClick={() => onOpenEdit(b)}
+                          >
+                            <Icon path={mdiPencilOutline} size={1} />
+                          </ActionIcon>
+                        </Tooltip>
                         <Tooltip label={t('admin.button.repo_binding.delete')}>
                           <ActionIcon
                             variant="subtle"
@@ -731,11 +778,10 @@ const RepoBindings: FC = () => {
                 value={refValue}
                 onChange={(e) => setRefValue(e.currentTarget.value)}
               />
-              <TextInput
+              <PasswordInput
                 label={t('admin.content.repo_binding.token')}
                 disabled={busy}
                 description={t('admin.content.repo_binding.token_help')}
-                type="password"
                 autoComplete="new-password"
                 placeholder="github_pat_…"
                 value={githubToken}
@@ -917,6 +963,79 @@ const RepoBindings: FC = () => {
             )}
           </Stack>
         )}
+      </AccessibleModal>
+
+      <AccessibleModal
+        opened={editTarget !== null}
+        onClose={() => {
+          if (!busy) {
+            setEditTarget(null)
+            setEditGithubToken('')
+          }
+        }}
+        title={t('admin.content.repo_binding.edit_title', {
+          defaultValue: 'Edit Repository Binding',
+        })}
+        size="lg"
+        closeOnEscape={!busy}
+        closeOnClickOutside={!busy}
+        withCloseButton={!busy}
+      >
+        <Text size="sm" c="dimmed" mb="lg">
+          {editTarget?.repoUrl}
+        </Text>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void onSaveEdit()
+          }}
+        >
+          <Stack gap="sm">
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <TextInput
+                label={t('admin.content.repo_binding.ref')}
+                disabled={busy}
+                placeholder="main"
+                value={editRefValue}
+                onChange={(e) => setEditRefValue(e.currentTarget.value)}
+              />
+              <PasswordInput
+                label={t('admin.content.repo_binding.token')}
+                disabled={busy}
+                description={
+                  editTarget?.hasGitHubToken
+                    ? t(
+                        'admin.content.repo_binding.token_replace_help',
+                        'Enter a new PAT to replace the current one, or leave blank to keep existing.'
+                      )
+                    : t('admin.content.repo_binding.token_help')
+                }
+                autoComplete="new-password"
+                placeholder={editTarget?.hasGitHubToken ? '••••••••' : 'github_pat_…'}
+                value={editGithubToken}
+                onChange={(e) => setEditGithubToken(e.currentTarget.value)}
+              />
+            </SimpleGrid>
+            <NumberInput
+              label={t('admin.content.repo_binding.interval')}
+              disabled={busy}
+              description={t('admin.content.repo_binding.interval_help')}
+              min={60}
+              max={86400}
+              step={60}
+              value={editIntervalSeconds}
+              onChange={setEditIntervalSeconds}
+            />
+            <Group justify="flex-end" gap="xs" mt="sm">
+              <Button variant="default" onClick={() => setEditTarget(null)} disabled={busy}>
+                {t('common.button.cancel')}
+              </Button>
+              <Button loading={busy} disabled={busy} type="submit">
+                {t('common.button.save')}
+              </Button>
+            </Group>
+          </Stack>
+        </form>
       </AccessibleModal>
 
       <AccessibleModal

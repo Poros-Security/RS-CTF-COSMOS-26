@@ -31,7 +31,7 @@ test('dense operational history uses responsive cards and named controls', () =>
   assert.match(logs, /hiddenFrom="md"/)
   assert.doesNotMatch(logs, /tableClasses\.overflow/)
   assert.equal((logs.match(/closeButtonProps:/g) ?? []).length, 2)
-  assert.equal((bindings.match(/<AccessibleModal/g) ?? []).length, 3)
+  assert.equal((bindings.match(/<AccessibleModal/g) ?? []).length, 4)
 })
 
 test('repository binding pagination stays compact and mounted while history pages load', () => {

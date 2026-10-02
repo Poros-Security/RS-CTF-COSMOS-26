@@ -103,7 +103,7 @@ fn ad_payloads_format_first_blood_and_full_sweep() {
     ad_blood_job.values = json!(["Team Alpha", "web-banking", 5]);
     ad_blood_job.game_title = "AD Championship".to_string();
     let payload = delivery_payload(&ad_blood_job).unwrap();
-    assert_eq!(payload["embeds"][0]["title"], "🩸First Exploit!");
+    assert_eq!(payload["embeds"][0]["title"], "🩸 First Exploit!");
     let desc = payload["embeds"][0]["description"].as_str().unwrap();
     assert!(desc.contains("Team Alpha"));
     assert!(desc.contains("web-banking"));

@@ -25,7 +25,7 @@ overrides:
   # The formatter's minimatch 9 branch cannot consume the only release that
   # fixes both 2026 brace-expansion denial-of-service advisories.
   "@trivago/prettier-plugin-sort-imports>minimatch": "10.2.5"
-  "minimatch>brace-expansion": "5.0.9"
+  "minimatch>brace-expansion": "5.0.12"
   # Patch the OpenAPI generator's AJV URI parser against host confusion.
   fast-uri: "3.1.6"
   # Patch OpenAPI YAML merge CPU limits (GHSA-2883-xcg3-v3hh).
@@ -36,6 +36,13 @@ overrides:
   # handling for zero and negative custom-generator sizes.
   "@xdsec/wsrx>nanoid": "5.1.16"
   "postcss>nanoid": "3.3.18"
+  brace-expansion@>=4.0.0 <5.0.10: ^5.0.10
+  brace-expansion@>=4.0.0 <5.0.11: ^5.0.11
+  brace-expansion@>=4.0.0 <5.0.12: ^5.0.12
+  dompurify@>=3.4.13 <=3.4.15: ^3.4.16
+  fast-uri@>=3.0.0 <3.1.7: ^3.1.7
+  fast-uri@>=3.0.0 <3.1.8: ^3.1.8
+  postcss-selector-parser@>=7.1.0 <7.1.3: ^7.1.3
 
 minimumReleaseAgeExclude:
   # Exact security hotfixes may bypass the seven-day cooldown; every unrelated
@@ -46,3 +53,10 @@ minimumReleaseAgeExclude:
   - postcss@8.5.23
   - dompurify@3.4.13
   - nanoid@3.3.18
+  - postcss-selector-parser@7.1.3
+  - fast-uri@3.1.7
+  - fast-uri@3.1.8
+  - brace-expansion@5.0.12
+  - brace-expansion@5.0.11
+  - brace-expansion@5.0.10
+  - dompurify@3.4.16
