@@ -324,7 +324,10 @@ async fn accepted_insert_triggers_full_sweep_on_last_opponent_capture() {
     let second = fixture.insert(201, 402).await.unwrap();
     assert!(second.broadcast_ok);
     assert_eq!(second.challenge_title, "service-a");
-    assert!(second.full_sweep, "second capture must complete the full sweep across all 2 opponents");
+    assert!(
+        second.full_sweep,
+        "second capture must complete the full sweep across all 2 opponents"
+    );
     assert_eq!(second.total_opponents, 2);
 
     fixture.cleanup().await;

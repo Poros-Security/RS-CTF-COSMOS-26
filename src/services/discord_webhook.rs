@@ -202,7 +202,11 @@ fn delivery_payload(job: &LeasedDelivery) -> Result<Value, &'static str> {
                     .ok_or("invalid_notice_values")?,
                 300,
             );
-            ("🩸 First Blood", 0xed_42_45, format!("**{team}** solved **{challenge}**."))
+            (
+                "🩸 First Blood",
+                0xed_42_45,
+                format!("**{team}** solved **{challenge}**."),
+            )
         }
         value if value == NoticeType::SecondBlood as i16 => {
             let values = job.values.as_array().ok_or("invalid_notice_values")?;
@@ -220,7 +224,11 @@ fn delivery_payload(job: &LeasedDelivery) -> Result<Value, &'static str> {
                     .ok_or("invalid_notice_values")?,
                 300,
             );
-            ("🥈 Second Blood", 0x99_aab5, format!("**{team}** solved **{challenge}**."))
+            (
+                "🥈 Second Blood",
+                0x99_aab5,
+                format!("**{team}** solved **{challenge}**."),
+            )
         }
         value if value == NoticeType::ThirdBlood as i16 => {
             let values = job.values.as_array().ok_or("invalid_notice_values")?;
@@ -238,7 +246,11 @@ fn delivery_payload(job: &LeasedDelivery) -> Result<Value, &'static str> {
                     .ok_or("invalid_notice_values")?,
                 300,
             );
-            ("🥉 Third Blood", 0xcd_7f32, format!("**{team}** solved **{challenge}**."))
+            (
+                "🥉 Third Blood",
+                0xcd_7f32,
+                format!("**{team}** solved **{challenge}**."),
+            )
         }
         value if value == NoticeType::AdFirstBlood as i16 => {
             let values = job.values.as_array().ok_or("invalid_notice_values")?;
@@ -265,7 +277,9 @@ fn delivery_payload(job: &LeasedDelivery) -> Result<Value, &'static str> {
             (
                 "🩸 First Exploit!",
                 0xe7_4c_3c,
-                format!("**{team}** scored the **FIRST EXPLOIT** on **{challenge}** (Round #{round})!"),
+                format!(
+                    "**{team}** scored the **FIRST EXPLOIT** on **{challenge}** (Round #{round})!"
+                ),
             )
         }
         value if value == NoticeType::AdFullSweep as i16 => {
