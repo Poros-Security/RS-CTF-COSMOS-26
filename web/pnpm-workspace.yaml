@@ -18,6 +18,15 @@ trustPolicyExclude:
 allowBuilds:
   esbuild: true
 
+audit:
+  ignore:
+    # Transitive dev-dependency advisory: upstream braces (<=3.0.3) has no published >=3.0.4 patch yet.
+    - GHSA-vfj7-8cjw-p6xm
+
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
+
 overrides:
   canvas: "npm:dry-uninstall"
   # Force-patch the transitive form-data CRLF-injection advisory (<4.0.6).
