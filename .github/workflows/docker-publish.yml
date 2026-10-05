@@ -1,4 +1,4 @@
-name: Build and Push Multi-Arch Docker Image to GHCR
+name: Build and Push Docker Image to GHCR (amd64)
 
 on:
   push:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   build-and-push:
-    name: Build & Push Multi-Arch Image
+    name: Build & Push Image (amd64)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,10 +21,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      # Setup QEMU for multi-platform support (e.g. arm64 on x86 runner)
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       # Setup Docker Buildx
       - name: Set up Docker Buildx
@@ -49,13 +45,13 @@ jobs:
             type=semver,pattern={{version}}
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
-      # Build and push the image supporting both amd64 and arm64
+      # Build and push natively for linux/amd64 (fast, no QEMU emulation)
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
