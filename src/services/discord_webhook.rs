@@ -976,7 +976,9 @@ pub async fn send_test_discord_webhook(webhook_url: &str) -> AppResult<()> {
             } else if error.is_connect() {
                 Err(AppError::bad_request("Failed to connect to Discord API"))
             } else {
-                Err(AppError::bad_request("Failed to send webhook request to Discord"))
+                Err(AppError::bad_request(
+                    "Failed to send webhook request to Discord",
+                ))
             }
         }
     }

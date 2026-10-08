@@ -805,4 +805,3 @@ fn test_notification_payload_conforms_to_cosmos_contract() {
     assert_eq!(embed["footer"]["text"], "Cosmos • Test Notification");
     assert!(embed.get("fields").is_none());
 }
-

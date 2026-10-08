@@ -17,13 +17,12 @@ pub async fn test_discord_webhook(
     Path(id): Path<i32>,
     Json(model): Json<TestDiscordWebhookModel>,
 ) -> AppResult<MessageResponse> {
-    let stored_webhook: Option<Option<String>> = sqlx::query_scalar(
-        r#"SELECT discord_webhook FROM "Games" WHERE id = $1"#,
-    )
-    .bind(id)
-    .fetch_optional(st.pg())
-    .await
-    .map_err(|error| AppError::internal(error.to_string()))?;
+    let stored_webhook: Option<Option<String>> =
+        sqlx::query_scalar(r#"SELECT discord_webhook FROM "Games" WHERE id = $1"#)
+            .bind(id)
+            .fetch_optional(st.pg())
+            .await
+            .map_err(|error| AppError::internal(error.to_string()))?;
 
     let stored_webhook = match stored_webhook {
         Some(webhook) => webhook,

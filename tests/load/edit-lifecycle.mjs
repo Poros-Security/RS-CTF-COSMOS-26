@@ -1392,6 +1392,12 @@ async function positiveReadAndMutationSurface() {
       confirmationTitle: "",
     },
   });
+  await call("edit_game_discord_test", {
+    body: {
+      webhookUrl:
+        "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz_1234567890",
+    },
+  });
   primaryGameModel = game.model;
   const updatedGameBody = {
     ...primaryGameModel,

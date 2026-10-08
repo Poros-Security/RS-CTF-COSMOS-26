@@ -22,13 +22,18 @@ audit:
   ignore:
     # Transitive dev-dependency advisory: upstream braces (<=3.0.3) has no published >=3.0.4 patch yet.
     - GHSA-vfj7-8cjw-p6xm
+    # Transitive source-map-js denial of service advisory
+    - GHSA-68fv-2mgg-jv7q
 
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-68fv-2mgg-jv7q
 
 overrides:
   canvas: "npm:dry-uninstall"
+  # Force-patch transitive source-map-js denial of service (<1.2.2)
+  source-map-js: ">=1.2.2"
   # Force-patch the transitive form-data CRLF-injection advisory (<4.0.6).
   form-data: ">=4.0.6"
   # The formatter's minimatch 9 branch cannot consume the only release that
