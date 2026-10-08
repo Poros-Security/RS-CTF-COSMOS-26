@@ -987,4 +987,3 @@ pub async fn send_test_discord_webhook(webhook_url: &str) -> AppResult<()> {
 #[cfg(test)]
 #[path = "discord_webhook_tests.rs"]
 mod tests;
-
