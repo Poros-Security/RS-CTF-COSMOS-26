@@ -18,6 +18,7 @@ import {
   Textarea,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
 import { Dropzone } from '@mantine/dropzone'
@@ -35,6 +36,7 @@ import {
   mdiDownload,
   mdiFileDocumentCheckOutline,
   mdiImageMultipleOutline,
+  mdiSend,
   mdiShieldLockOutline,
   mdiSwordCross,
   mdiTextBoxOutline,
@@ -107,6 +109,7 @@ const GameInfoEdit: FC = () => {
 
   const [disabled, setDisabled] = useState(false)
   const [generatingVariants, setGeneratingVariants] = useState(false)
+  const [testingWebhook, setTestingWebhook] = useState(false)
   const [eventSecurityAction, setEventSecurityAction] = useState<string | null>(null)
   const variantJobRef = useRef<Promise<void> | null>(null)
   const derivationJobRef = useRef<Promise<void> | null>(null)
@@ -323,6 +326,36 @@ const GameInfoEdit: FC = () => {
       })
     } finally {
       setDisabled(false)
+    }
+  }
+
+  const handleTestDiscordWebhook = async () => {
+    const url = game?.discordWebhook?.trim()
+    if (!game?.id || !url || testingWebhook) return
+
+    setTestingWebhook(true)
+    try {
+      await api.edit.editTestDiscordWebhook(game.id, { webhookUrl: url })
+      showNotification({
+        color: 'teal',
+        message: t(
+          'admin.content.games.info.discord_webhook.test_success',
+          'Test notification sent successfully to Discord!'
+        ),
+        icon: <Icon path={mdiCheck} size={1} />,
+      })
+    } catch (err) {
+      showNotification({
+        color: 'red',
+        title: t(
+          'admin.content.games.info.discord_webhook.test_failed',
+          'Failed to send test notification to Discord'
+        ),
+        message: tryGetErrorMsg(err, t),
+        icon: <Icon path={mdiClose} size={1} />,
+      })
+    } finally {
+      setTestingWebhook(false)
     }
   }
 
@@ -857,6 +890,20 @@ const GameInfoEdit: FC = () => {
                   value={game?.discordWebhook || ''}
                   disabled={disabled}
                   onChange={(e) => game && setGame({ ...game, discordWebhook: e.target.value })}
+                  rightSectionWidth={48}
+                  rightSection={
+                    <Tooltip label={t('admin.content.games.info.discord_webhook.test', 'Test Webhook')}>
+                      <ActionIcon
+                        size={44}
+                        disabled={disabled || !game?.discordWebhook?.trim() || testingWebhook}
+                        loading={testingWebhook}
+                        aria-label={t('admin.content.games.info.discord_webhook.test', 'Test Webhook')}
+                        onClick={handleTestDiscordWebhook}
+                      >
+                        <Icon path={mdiSend} size={0.9} />
+                      </ActionIcon>
+                    </Tooltip>
+                  }
                 />
                 <DateTimePicker
                   label={t('admin.content.games.info.start_time')}

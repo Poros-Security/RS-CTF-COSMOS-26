@@ -915,6 +915,74 @@ pub fn start_reconciler(
     })
 }
 
+fn test_notification_payload() -> Value {
+    json!({
+        "allowed_mentions": { "parse": [] },
+        "embeds": [{
+            "title": "🧪 Webhook Test",
+            "description": "Discord webhook integration is configured and functioning correctly.",
+            "color": 0x58_65_f2,
+            "footer": { "text": "Cosmos • Test Notification" },
+            "timestamp": Utc::now().to_rfc3339()
+        }]
+    })
+}
+
+/// Send an immediate test delivery to verify webhook connectivity without
+/// waiting for a first-blood solve. Uses the canonical webhook normalizer and
+/// client with a bounded timeout.
+pub async fn send_test_discord_webhook(webhook_url: &str) -> AppResult<()> {
+    let normalized = match normalize_discord_webhook(Some(webhook_url))? {
+        Some(url) => url,
+        None => {
+            return Err(AppError::bad_request("Discord webhook URL cannot be empty"));
+        }
+    };
+    let endpoint = delivery_endpoint(&normalized)
+        .map_err(|_| AppError::bad_request("Invalid Discord webhook endpoint"))?;
+
+    let payload = test_notification_payload();
+
+    let client = match HTTP_CLIENT.as_ref() {
+        Ok(client) => client,
+        Err(_) => {
+            return Err(AppError::internal("Discord HTTP client unavailable"));
+        }
+    };
+
+    match client.post(endpoint).json(&payload).send().await {
+        Ok(response) => {
+            let status = response.status();
+            if status.is_success() {
+                Ok(())
+            } else if status == StatusCode::TOO_MANY_REQUESTS {
+                Err(AppError::bad_request(
+                    "Discord rate limit reached, please try again shortly",
+                ))
+            } else if status == StatusCode::NOT_FOUND || status == StatusCode::UNAUTHORIZED {
+                Err(AppError::bad_request(
+                    "Discord webhook URL not found or token invalid",
+                ))
+            } else {
+                Err(AppError::bad_request(format!(
+                    "Discord returned error status: {}",
+                    status.as_u16()
+                )))
+            }
+        }
+        Err(error) => {
+            if error.is_timeout() {
+                Err(AppError::bad_request("Timeout connecting to Discord API"))
+            } else if error.is_connect() {
+                Err(AppError::bad_request("Failed to connect to Discord API"))
+            } else {
+                Err(AppError::bad_request("Failed to send webhook request to Discord"))
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "discord_webhook_tests.rs"]
 mod tests;
+

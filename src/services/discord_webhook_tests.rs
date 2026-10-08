@@ -788,3 +788,21 @@ async fn outbox_enqueue_claim_freeze_and_completion_are_durable() {
         .unwrap();
     admin.close().await;
 }
+
+#[test]
+fn test_notification_payload_conforms_to_cosmos_contract() {
+    let payload = test_notification_payload();
+    assert_eq!(payload["allowed_mentions"]["parse"], json!([]));
+    let embeds = payload["embeds"].as_array().expect("embeds must be array");
+    assert_eq!(embeds.len(), 1);
+    let embed = &embeds[0];
+    assert_eq!(embed["title"], "🧪 Webhook Test");
+    assert_eq!(
+        embed["description"],
+        "Discord webhook integration is configured and functioning correctly."
+    );
+    assert_eq!(embed["color"], 0x58_65_f2);
+    assert_eq!(embed["footer"]["text"], "Cosmos • Test Notification");
+    assert!(embed.get("fields").is_none());
+}
+
