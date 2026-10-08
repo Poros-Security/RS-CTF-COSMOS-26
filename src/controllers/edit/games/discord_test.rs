@@ -34,7 +34,7 @@ pub async fn test_discord_webhook(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .or_else(|| stored_webhook.as_deref())
+        .or(stored_webhook.as_deref())
         .ok_or_else(|| AppError::bad_request("No Discord webhook URL provided"))?;
 
     crate::services::discord_webhook::send_test_discord_webhook(target_url).await?;
