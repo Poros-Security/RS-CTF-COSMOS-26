@@ -48,7 +48,7 @@ pub(crate) struct CredentialScope {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct CredentialMutationRequest {
     pub(crate) operation_id: Uuid,
     pub(crate) expected_revision: i64,

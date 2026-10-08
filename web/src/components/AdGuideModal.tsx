@@ -140,7 +140,10 @@ export const AdGuideModal: FC<AdToolkitModalProps> = ({ gameId, tokenOwner, ...m
     return withPlayerCredentialLock(key, async () => {
       const operation = claimPlayerCredentialOperation(storage, key, sshKey?.revision ?? 0, intent)
       try {
-        const result = await request(operation)
+        const result = await request({
+          operationId: operation.operationId,
+          expectedRevision: operation.expectedRevision,
+        })
         if (activeSshViewerScope.current !== viewerScopeAtStart) {
           throw new Error('An SSH credential response for an older account was ignored')
         }
@@ -171,7 +174,11 @@ export const AdGuideModal: FC<AdToolkitModalProps> = ({ gameId, tokenOwner, ...m
     try {
       const intent = await playerCredentialIntent('upload', publicKey)
       await runSshOperation(intent, async (operation) => {
-        const { data } = await api.game.adGameUploadSshKey(gameId, { publicKey, ...operation })
+        const { data } = await api.game.adGameUploadSshKey(gameId, {
+          publicKey,
+          operationId: operation.operationId,
+          expectedRevision: operation.expectedRevision,
+        })
         return data
       })
       if (generation !== sshResponseGeneration.current) return
@@ -200,7 +207,10 @@ export const AdGuideModal: FC<AdToolkitModalProps> = ({ gameId, tokenOwner, ...m
     const generation = ++sshResponseGeneration.current
     try {
       const data = await runSshOperation('generate', async (operation) => {
-        const response = await api.game.adGameGenerateSshKey(gameId, operation)
+        const response = await api.game.adGameGenerateSshKey(gameId, {
+          operationId: operation.operationId,
+          expectedRevision: operation.expectedRevision,
+        })
         return response.data
       })
       if (generation !== sshResponseGeneration.current) return
@@ -223,7 +233,10 @@ export const AdGuideModal: FC<AdToolkitModalProps> = ({ gameId, tokenOwner, ...m
     const generation = ++sshResponseGeneration.current
     try {
       await runSshOperation('revoke', async (operation) => {
-        const response = await api.game.adGameRevokeSshKey(gameId, operation)
+        const response = await api.game.adGameRevokeSshKey(gameId, {
+          operationId: operation.operationId,
+          expectedRevision: operation.expectedRevision,
+        })
         return response.data
       })
       if (generation !== sshResponseGeneration.current) return
