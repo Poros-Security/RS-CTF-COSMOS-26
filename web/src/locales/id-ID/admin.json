@@ -507,7 +507,10 @@
         "discord_webhook": {
           "description": "Kirim notifikasi ke webhook ini",
           "label": "Discord Webhook",
-          "placeholder": "https://discord.com/api/webhooks/..."
+          "placeholder": "https://discord.com/api/webhooks/...",
+          "test": "Uji Webhook",
+          "test_success": "Notifikasi uji coba berhasil dikirim ke Discord!",
+          "test_failed": "Gagal mengirim notifikasi uji coba ke Discord"
         },
         "divisions": {
           "description": "Tambah divisi untuk pengelompokan scoreboard, kosongkan untuk menonaktifkan",

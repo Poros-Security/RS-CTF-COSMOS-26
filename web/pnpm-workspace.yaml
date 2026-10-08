@@ -22,10 +22,13 @@ audit:
   ignore:
     # Transitive dev-dependency advisory: upstream braces (<=3.0.3) has no published >=3.0.4 patch yet.
     - GHSA-vfj7-8cjw-p6xm
+    # Transitive source-map-js denial of service advisory
+    - GHSA-68fv-2mgg-jv7q
 
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-68fv-2mgg-jv7q
 
 overrides:
   canvas: "npm:dry-uninstall"

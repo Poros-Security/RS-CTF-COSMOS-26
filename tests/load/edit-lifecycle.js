@@ -92,6 +92,18 @@ export const EDIT_OPERATIONS = Object.freeze([
     mutation: true,
     responseKind: "game",
   }),
+  operation(
+    "edit_game_discord_test",
+    "POST",
+    "/api/edit/games/{id}/discord/test",
+    {
+      auth: "admin",
+      params: game,
+      mutation: true,
+      responseKind: "message",
+      expectedStatuses: [200, 400],
+    },
+  ),
   operation("edit_game_purge", "POST", "/api/edit/games/{id}/purge", {
     auth: "admin",
     params: game,

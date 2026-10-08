@@ -684,6 +684,10 @@ pub fn router() -> Router<SharedState> {
             "/api/edit/games/{id}",
             get(get_game).put(update_game).delete(delete_game),
         )
+        .route(
+            "/api/edit/games/{id}/discord/test",
+            limited(Policy::Concurrency, post(test_discord_webhook)),
+        )
         .route("/api/edit/games/{id}/purge", post(purge_game))
         .route(
             "/api/edit/games/{id}/preflight",

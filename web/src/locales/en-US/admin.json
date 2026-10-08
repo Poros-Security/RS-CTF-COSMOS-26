@@ -684,7 +684,10 @@
         "discord_webhook": {
           "description": "Send notifications to this webhook",
           "label": "Discord Webhook",
-          "placeholder": "https://discord.com/api/webhooks/..."
+          "placeholder": "https://discord.com/api/webhooks/...",
+          "test": "Test Webhook",
+          "test_success": "Test notification sent successfully to Discord!",
+          "test_failed": "Failed to send test notification to Discord"
         },
         "divisions": {
           "description": "Add divisions to enable grouped scoreboard, leave empty to disable",

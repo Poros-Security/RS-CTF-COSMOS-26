@@ -7713,6 +7713,28 @@ export class Api<
       }),
 
     /**
+     * @description Send an immediate test delivery to verify Discord webhook connectivity.
+     *
+     * @tags Edit
+     * @name EditTestDiscordWebhook
+     * @summary Test Discord Webhook
+     * @request POST:/api/edit/games/{id}/discord/test
+     */
+    editTestDiscordWebhook: (
+      id: number,
+      data: { webhookUrl?: string },
+      params: RequestParams = {},
+    ) =>
+      this.request<RequestResponse, RequestResponse>({
+        path: `/api/edit/games/${id}/discord/test`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
      * @description Retrieve all divisions for a game; requires administrator privileges
      *
      * @tags Edit

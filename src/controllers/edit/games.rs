@@ -4,6 +4,8 @@ mod creation;
 pub use creation::add_game;
 #[cfg(test)]
 pub(crate) use creation::apply_ad_creation_settings;
+mod discord_test;
+pub use discord_test::test_discord_webhook;
 mod update_support;
 pub(crate) use update_support::process_configuration_effects;
 
