@@ -143,6 +143,7 @@ pub(super) async fn render_wg_config_for_game(
     required_routes.push(ad_vpn::client_cidr());
     let allowed_ips = merge_allowed_routes(configured_routes.as_deref(), required_routes);
 
+    let client_mtu = ad_vpn::client_mtu();
     let generated = Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
     let user_name = wireguard_comment(user_name);
     Ok(format!(
@@ -152,6 +153,7 @@ pub(super) async fn render_wg_config_for_game(
          [Interface]\n\
          PrivateKey = {priv_key}\n\
          Address = {address}/32\n\
+         MTU = {client_mtu}\n\
          DNS = {dns}\n\
          \n\
          [Peer]\n\
@@ -163,6 +165,7 @@ pub(super) async fn render_wg_config_for_game(
         gid = game_id,
         priv_key = peer.private_key,
         address = peer.address,
+        client_mtu = client_mtu,
     ))
 }
 

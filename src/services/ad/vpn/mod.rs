@@ -369,6 +369,27 @@ pub fn listen_port() -> u16 {
         .unwrap_or(51820)
 }
 
+/// WireGuard MTU embedded in generated client profiles (`.conf`).
+/// Defaults to 1280 (the safe MTU floor for IPv6/cellular/PPPoE tunnels)
+/// so participants do not need to configure local MTU manually.
+pub fn client_mtu() -> u16 {
+    std::env::var("RSCTF_AD_VPN_CLIENT_MTU")
+        .or_else(|_| std::env::var("RSCTF_AD_VPN_MTU"))
+        .ok()
+        .and_then(|v| v.trim().parse::<u16>().ok())
+        .filter(|&v| (576..=1500).contains(&v))
+        .unwrap_or(1280)
+}
+
+/// Optional WireGuard MTU configured on the server `wg0` hub interface.
+pub fn server_mtu() -> Option<u16> {
+    std::env::var("RSCTF_AD_VPN_SERVER_MTU")
+        .or_else(|_| std::env::var("RSCTF_AD_VPN_MTU"))
+        .ok()
+        .and_then(|v| v.trim().parse::<u16>().ok())
+        .filter(|&v| (576..=1500).contains(&v))
+}
+
 pub fn required() -> bool {
     std::env::var("RSCTF_AD_VPN_REQUIRED")
         .map(|value| matches!(value.as_str(), "1" | "true" | "yes"))
