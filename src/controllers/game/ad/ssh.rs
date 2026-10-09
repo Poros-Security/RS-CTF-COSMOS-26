@@ -9,7 +9,7 @@ const DELETE_SSH_KEY_BINDING: &[u8] = b"delete-ssh-key";
 
 /// Body for `POST /api/Game/{id}/Ad/Ssh/Key` (`AdSshKeyUploadModel`).
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct AdSshKeyUploadModel {
     #[serde(default)]
     pub public_key: String,
@@ -626,5 +626,23 @@ mod tests {
             map_ssh_key_write_error(database_error("23505", Some("ux_adsshkeys_participation")));
 
         assert!(matches!(error, AppError::Internal(_)));
+    }
+
+    #[test]
+    fn upload_model_deserializes_with_client_operation_metadata() {
+        let raw = serde_json::json!({
+            "publicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample test",
+            "operationId": "00000000-0000-4000-8000-000000000001",
+            "expectedRevision": 0,
+            "createdAt": 1728360000000_i64,
+            "intent": "upload:abc"
+        });
+        let parsed: AdSshKeyUploadModel = serde_json::from_value(raw)
+            .expect("upload model must accept forward-compatible client metadata");
+        assert_eq!(parsed.expected_revision, 0);
+        assert_eq!(
+            parsed.public_key,
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample test"
+        );
     }
 }

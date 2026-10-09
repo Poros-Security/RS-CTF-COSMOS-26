@@ -787,7 +787,7 @@ async fn ensure_hub_and_sync_owned(db: &DatabaseConnection) -> AppResult<()> {
         addresses: IpAddrMask::from_str(&address).into_iter().collect(),
         port,
         peers,
-        mtu: None,
+        mtu: server_mtu().map(u32::from),
         fwmark: None,
     };
     let kernel_client = client_network;

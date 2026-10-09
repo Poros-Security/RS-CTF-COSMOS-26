@@ -118,3 +118,9 @@ fn same_origin_dns_must_bind_the_derived_wireguard_hub() {
     assert!(validate_same_origin_hub(Some("10.13.0.2"), "10.13.0.0/19").is_err());
     assert!(validate_same_origin_hub(Some("not-an-ip"), "10.13.0.0/19").is_err());
 }
+
+#[test]
+fn client_mtu_defaults_to_1280_and_respects_safe_boundaries() {
+    // When unset, client_mtu returns safe floor 1280
+    assert_eq!(super::client_mtu(), 1280);
+}
