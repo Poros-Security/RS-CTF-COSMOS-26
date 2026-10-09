@@ -124,4 +124,3 @@ fn client_mtu_defaults_to_1280_and_respects_safe_boundaries() {
     // When unset, client_mtu returns safe floor 1280
     assert_eq!(super::client_mtu(), 1280);
 }
-
