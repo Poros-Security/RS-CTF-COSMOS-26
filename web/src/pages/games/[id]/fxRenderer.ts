@@ -50,9 +50,11 @@ export function createFxRenderer(refCanvas: HTMLCanvasElement): FxRenderer {
   const sparkPairs: { o: any; p: Particle }[] = []
   const headPairs: { o: any; p: Particle }[] = []
 
+  let lastW = 1, lastH = 1
   const r0 = refCanvas.getBoundingClientRect()
+  lastW = Math.max(r0.width, 1); lastH = Math.max(r0.height, 1)
   ;(async () => {
-    await app.init({ canvas, backgroundAlpha: 0, antialias: true, autoStart: false, autoDensity: true, resolution: window.devicePixelRatio || 1, width: Math.max(r0.width, 1), height: Math.max(r0.height, 1), preference: 'webgpu' })
+    await app.init({ canvas, backgroundAlpha: 0, antialias: true, autoStart: false, autoDensity: true, resolution: window.devicePixelRatio || 1, width: lastW, height: lastH, preference: 'webgpu' })
     if (disposed) { app.destroy({ removeView: true }, { children: true, texture: true }); return }
     dot = bakeDot()
     const layer = new Container()
@@ -65,7 +67,8 @@ export function createFxRenderer(refCanvas: HTMLCanvasElement): FxRenderer {
     sparksPC.blendMode = headsPC.blendMode = vec.blendMode = 'add'
     layer.addChild(vec, sparksPC, headsPC) // trails/beams under the glowing points
     app.stage.addChild(layer)
-    app.stage.scale.set(r0.width / 1000)
+    app.renderer.resize(lastW, lastH)
+    app.stage.scale.set(lastW / 1000)
     refCanvas.style.display = 'none' // hand the layer over to Pixi; legacy 2D canvas hidden
     ready = true
   })().catch(() => { ready = false /* keep the 2D fallback alive */ })
@@ -91,8 +94,9 @@ export function createFxRenderer(refCanvas: HTMLCanvasElement): FxRenderer {
   return {
     get ready() { return ready },
     resize(cssW: number, cssH: number) {
+      lastW = Math.max(cssW, 1); lastH = Math.max(cssH, 1)
       if (!ready) return
-      app.renderer.resize(Math.max(cssW, 1), Math.max(cssH, 1)); app.stage.scale.set(cssW / 1000)
+      app.renderer.resize(lastW, lastH); app.stage.scale.set(lastW / 1000)
     },
     destroy() {
       disposed = true
