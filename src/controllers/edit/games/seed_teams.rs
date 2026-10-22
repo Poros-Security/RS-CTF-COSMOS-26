@@ -38,7 +38,7 @@ pub async fn seed_teams(
     Path(id): Path<i32>,
     Json(model): Json<GameSeedTeamsModel>,
 ) -> AppResult<RequestResponse<Vec<SeededTeamResult>>> {
-    super::super::check_game_perm(&st, &user, id).await?;
+    super::manager_or_admin(&st, &user, id).await?;
     let game = crate::controllers::edit::helpers::load_game(&st, id).await?;
 
     if model.team_names.is_empty() {

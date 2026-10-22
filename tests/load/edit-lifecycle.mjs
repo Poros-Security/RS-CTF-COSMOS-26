@@ -444,6 +444,9 @@ function authorizationProbeRequest(operation) {
       challengeConfigs: [],
     },
     edit_division_update: { name: `authorization-probe-${runKey}` },
+    edit_game_seed_teams: {
+      teamNames: [`probe-${runKey}`],
+    },
     edit_koth_observer_rotate: {
       operationId: randomUUID(),
       expectedRevision: 0,
@@ -1636,6 +1639,17 @@ async function positiveReadAndMutationSurface() {
   requireCondition(
     division.model.name === `edit-updated-${runKey}`,
     "division update did not persist",
+  );
+
+  const seeded = await call("edit_game_seed_teams", {
+    jwt: identities.managerJwt,
+    body: { teamNames: [`seeded-${runKey}`] },
+  });
+  requireCondition(
+    Array.isArray(seeded.model) &&
+      seeded.model.length === 1 &&
+      seeded.model[0].teamName === `seeded-${runKey}`,
+    "seed teams did not return seeded team",
   );
 
   const adState = await call("edit_ad_state", { jwt: identities.managerJwt });
