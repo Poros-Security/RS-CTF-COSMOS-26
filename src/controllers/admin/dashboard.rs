@@ -567,6 +567,8 @@ async fn load_writeups(pool: &PgPool, count: u64, skip: u64) -> AppResult<Vec<Wr
                     .map(|hash| format!("/assets/{hash}/avatar")),
                 locked: row.team_locked.unwrap_or(false),
                 members: Vec::new(),
+                game_ids: Vec::new(),
+                invite_code: None,
             },
             game_title: row.game_title.unwrap_or_default(),
             url: format!("/assets/{}/{}", row.file_hash, row.file_name),

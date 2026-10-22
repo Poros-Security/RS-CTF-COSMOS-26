@@ -3,6 +3,7 @@ import {
   Avatar,
   Badge,
   Box,
+  Button,
   Card,
   Code,
   Divider,
@@ -27,6 +28,7 @@ import {
   mdiLockOutline,
   mdiMagnify,
   mdiPencilOutline,
+  mdiPlus,
 } from '@mdi/js'
 import { Icon } from '@mdi/react'
 import { FC, useEffect, useRef, useState } from 'react'
@@ -35,6 +37,7 @@ import { ActionIconWithConfirm } from '@Components/ActionIconWithConfirm'
 import { ScrollingText } from '@Components/ScrollingText'
 import { AdminPage } from '@Components/admin/AdminPage'
 import { TeamEditModal } from '@Components/admin/TeamEditModal'
+import { SeedTeamsModal } from '@Components/admin/SeedTeamsModal'
 import { showErrorMsg } from '@Utils/Shared'
 import { useArrayResponse } from '@Hooks/useArrayResponse'
 import api, { TeamInfoModel } from '@Api'
@@ -52,6 +55,7 @@ const Teams: FC = () => {
   const [disabled, setDisabled] = useState(false)
   const [current, setCurrent] = useState(0)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isSeedModalOpen, setIsSeedModalOpen] = useState(false)
   const [activeTeam, setActiveTeam] = useState<TeamInfoModel>({})
 
   const { t } = useTranslation()
@@ -173,6 +177,12 @@ const Teams: FC = () => {
             rightSection={<Icon path={mdiAccountGroupOutline} size={1} />}
           />
           <Group justify="right" wrap="wrap">
+            <Button
+              leftSection={<Icon path={mdiPlus} size={0.85} />}
+              onClick={() => setIsSeedModalOpen(true)}
+            >
+              {t('admin.button.games.seed_teams', 'Seed Teams')}
+            </Button>
             <Text fw="bold" size="sm">
               <Trans
                 i18nKey="admin.content.teams.stats"
@@ -239,9 +249,16 @@ const Teams: FC = () => {
                               </Avatar>
                               <ScrollingText text={team.name ?? 'team'} fw="bold" maw={180} />
                             </Group>
-                            <Badge size="md" color={team.locked ? 'yellow' : 'gray'}>
-                              {team.locked ? t('admin.content.teams.locked') : t('admin.content.teams.unlocked')}
-                            </Badge>
+                            <Group gap="xs" wrap="nowrap">
+                              {team.gameIds && team.gameIds.length > 0 && (
+                                <Badge size="sm" variant="outline" color="blue">
+                                  {team.gameIds.length === 1 ? '1 game' : `${team.gameIds.length} games`}
+                                </Badge>
+                              )}
+                              <Badge size="md" color={team.locked ? 'yellow' : 'gray'}>
+                                {team.locked ? t('admin.content.teams.locked') : t('admin.content.teams.unlocked')}
+                              </Badge>
+                            </Group>
                           </Group>
                         </Table.Td>
                         <Table.Td>
@@ -463,6 +480,11 @@ const Teams: FC = () => {
               [team, ...(teams?.filter((n) => n.id !== team.id) ?? [])].sort((a, b) => (a.id! < b.id! ? -1 : 1))
             )
           }}
+        />
+        <SeedTeamsModal
+          opened={isSeedModalOpen}
+          onClose={() => setIsSeedModalOpen(false)}
+          onSuccess={() => setUpdate(new Date())}
         />
       </Paper>
     </AdminPage>

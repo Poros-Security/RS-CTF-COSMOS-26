@@ -905,6 +905,10 @@ export interface TeamInfoModel {
   profileRevision?: number;
   /** Team members */
   members?: TeamUserInfoModel[] | null;
+  /** Distinct game IDs this team participates in */
+  gameIds?: number[];
+  /** Team invite code */
+  inviteCode?: string | null;
 }
 
 export interface TeamInviteModel {
@@ -6117,6 +6121,27 @@ export class Api<
       }),
 
     /**
+     * @description Seed teams universally without requiring a game
+     *
+     * @tags Admin
+     * @name AdminSeedTeams
+     * @summary Seed teams platform-wide
+     * @request POST:/api/admin/teams/seed
+     */
+    adminSeedTeams: (
+      data: { teamNames: string[] },
+      params: RequestParams = {},
+    ) =>
+      this.request<SeededTeamResult[], AppError>({
+        path: `/api/admin/teams/seed`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
      * @description Use this API to search users, requires Admin permission
      *
      * @tags Admin
@@ -7637,7 +7662,7 @@ export class Api<
       data: GameSeedTeamsModel,
       params: RequestParams = {},
     ) =>
-      this.request<RequestResponse<SeededTeamResult[]>, AppError>({
+      this.request<SeededTeamResult[], AppError>({
         path: `/api/edit/games/${id}/seed-teams`,
         method: "POST",
         body: data,

@@ -188,6 +188,7 @@ pub fn router() -> Router<SharedState> {
         // --- Teams ---
         .route("/api/admin/teams", get(teams))
         .route("/api/admin/teams/search", post(search_teams))
+        .route("/api/admin/teams/seed", post(seed_teams))
         .route(
             "/api/admin/teams/{id}",
             put(update_team).delete(delete_team),
@@ -476,6 +477,8 @@ pub async fn game_writeups(
                     .map(|hash| format!("/assets/{hash}/avatar")),
                 locked: row.team_locked,
                 members: Vec::new(),
+                game_ids: Vec::new(),
+                invite_code: None,
             },
             game_title: row.game_title,
             url: format!("/assets/{}/{}", row.hash, row.file_name),

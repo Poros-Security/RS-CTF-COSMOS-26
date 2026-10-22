@@ -95,52 +95,91 @@ pub async fn seed_teams(
     let mut results = Vec::with_capacity(cleaned_names.len());
 
     for team_name in cleaned_names {
-        // Check if team name already exists
-        let name_exists: bool = sqlx::query_scalar(
-            r#"SELECT EXISTS(SELECT 1 FROM "Teams" WHERE UPPER(name) = UPPER($1))"#,
+        // Fetch existing team or insert a new general platform team
+        let existing_team: Option<(i32, String)> =
+            sqlx::query_as(r#"SELECT id, invite_token FROM "Teams" WHERE UPPER(name) = UPPER($1)"#)
+                .bind(&team_name)
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(|e| AppError::internal(e.to_string()))?;
+
+        let (team_id, invite_token) = if let Some((tid, token)) = existing_team {
+            (tid, token)
+        } else {
+            let invite_token = random_hex(16); // 32 hex chars
+            let team_id: i32 = sqlx::query_scalar(
+                r#"INSERT INTO "Teams"
+                     (name, bio, avatar_hash, locked, deletion_pending, invite_token, captain_id)
+                   VALUES ($1, NULL, NULL, FALSE, FALSE, $2, NULL)
+                   RETURNING id"#,
+            )
+            .bind(&team_name)
+            .bind(&invite_token)
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
+            (team_id, invite_token)
+        };
+
+        // Check if team is already enrolled in this game
+        let existing_part: Option<i32> = sqlx::query_scalar(
+            r#"SELECT id FROM "Participations" WHERE game_id = $1 AND team_id = $2"#,
         )
-        .bind(&team_name)
-        .fetch_one(&mut *transaction)
+        .bind(id)
+        .bind(team_id)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
-        if name_exists {
-            return Err(AppError::conflict(format!(
-                "Team name already exists: {team_name}"
-            )));
-        }
 
-        let invite_token = random_hex(16); // 32 hex chars
-        let team_id: i32 = sqlx::query_scalar(
-            r#"INSERT INTO "Teams"
-                 (name, bio, avatar_hash, locked, deletion_pending, invite_token, captain_id)
-               VALUES ($1, NULL, NULL, FALSE, FALSE, $2, NULL)
-               RETURNING id"#,
+        let part_id = if let Some(pid) = existing_part {
+            if model.division_id.is_some() {
+                sqlx::query(r#"UPDATE "Participations" SET division_id = $1 WHERE id = $2"#)
+                    .bind(model.division_id)
+                    .bind(pid)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(|e| AppError::internal(e.to_string()))?;
+            }
+            pid
+        } else {
+            let part_token =
+                crate::controllers::game::participation_token_from_key(&game.private_key, team_id)?;
+
+            sqlx::query_scalar(
+                r#"INSERT INTO "Participations"
+                     (game_id, team_id, division_id, status, token, suspicion_score)
+                   VALUES ($1, $2, $3, 0, $4, 0)
+                   RETURNING id"#,
+            )
+            .bind(id)
+            .bind(team_id)
+            .bind(model.division_id)
+            .bind(part_token)
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?
+        };
+
+        // If team already has members/captain, sync them into UserParticipations for this game
+        sqlx::query(
+            r#"INSERT INTO "UserParticipations" (user_id, game_id, team_id, participation_id)
+               SELECT member.user_id, $1, $2, $3
+                 FROM (
+                     SELECT captain_id AS user_id FROM "Teams" WHERE id = $2 AND captain_id IS NOT NULL
+                     UNION
+                     SELECT user_id FROM "TeamMembers" WHERE team_id = $2
+                 ) member
+               ON CONFLICT (user_id, game_id) DO NOTHING"#,
         )
-        .bind(&team_name)
-        .bind(&invite_token)
-        .fetch_one(&mut *transaction)
+        .bind(id)
+        .bind(team_id)
+        .bind(part_id)
+        .execute(&mut *transaction)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
         // Format invite code as {name}:{id}:{token}
         let invite_code = format!("{}:{}:{}", team_name, team_id, invite_token);
-
-        let part_token =
-            crate::controllers::game::participation_token_from_key(&game.private_key, team_id)?;
-
-        // Enroll team in game participation (status 0 = Accepted)
-        sqlx::query(
-            r#"INSERT INTO "Participations"
-                 (game_id, team_id, division_id, status, token, suspicion_score)
-               VALUES ($1, $2, $3, 0, $4, 0)"#,
-        )
-        .bind(id)
-        .bind(team_id)
-        .bind(model.division_id)
-        .bind(part_token)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
 
         results.push(SeededTeamResult {
             team_id,
