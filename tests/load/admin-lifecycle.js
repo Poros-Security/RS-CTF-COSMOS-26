@@ -254,6 +254,10 @@ export const ADMIN_OPERATIONS = Object.freeze([
     responseKind: "page",
     query: "hint=admin-load",
   }),
+  operation("admin_teams_seed", "POST", "/api/admin/teams/seed", {
+    mutation: true,
+    responseKind: "array",
+  }),
   operation("admin_team_update", "PUT", "/api/admin/teams/{id}", {
     mutation: true,
     responseKind: "message",

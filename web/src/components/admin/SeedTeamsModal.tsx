@@ -24,7 +24,7 @@ import { quoteSpreadsheetCsvCell } from '@Utils/Csv'
 import api, { Division, SeededTeamResult } from '@Api'
 
 interface SeedTeamsModalProps extends ModalProps {
-  gameId: number
+  gameId?: number
   divisions?: Division[]
   onSuccess?: () => void
 }
@@ -32,9 +32,29 @@ interface SeedTeamsModalProps extends ModalProps {
 export const SeedTeamsModal: FC<SeedTeamsModalProps> = ({ gameId, divisions, onSuccess, ...props }) => {
   const { t } = useTranslation()
   const [teamNamesRaw, setTeamNamesRaw] = useState('')
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(gameId ? String(gameId) : null)
   const [divisionId, setDivisionId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SeededTeamResult[] | null>(null)
+
+  const activeGameId = gameId ?? (selectedGameId ? parseInt(selectedGameId, 10) : undefined)
+
+  // Fetch games list if opened without a pre-set gameId
+  const { data: allGamesRes } = api.edit.useEditGetGames(
+    { count: 100 },
+    undefined,
+    !gameId && props.opened
+  )
+  const allGames = allGamesRes?.data ?? []
+
+  // Fetch divisions dynamically if a game is selected from dropdown
+  const { data: dynamicDivisions } = api.edit.useEditGetDivisions(
+    activeGameId ?? 0,
+    undefined,
+    Boolean(activeGameId && !divisions && props.opened)
+  )
+
+  const effectiveDivisions = divisions ?? dynamicDivisions ?? []
 
   const handleClose = () => {
     if (results && onSuccess) {
@@ -43,6 +63,9 @@ export const SeedTeamsModal: FC<SeedTeamsModalProps> = ({ gameId, divisions, onS
     setResults(null)
     setTeamNamesRaw('')
     setDivisionId(null)
+    if (!gameId) {
+      setSelectedGameId(null)
+    }
     props.onClose()
   }
 
@@ -63,16 +86,31 @@ export const SeedTeamsModal: FC<SeedTeamsModalProps> = ({ gameId, divisions, onS
 
     try {
       setLoading(true)
-      const res = await api.edit.editSeedTeams(gameId, {
-        teamNames: lines,
-        divisionId: divisionId ? parseInt(divisionId, 10) : null,
-      })
-      if (res.data.data) {
-        setResults(res.data.data)
+      let data: SeededTeamResult[] = []
+
+      if (activeGameId) {
+        const res = await api.edit.editSeedTeams(activeGameId, {
+          teamNames: lines,
+          divisionId: divisionId ? parseInt(divisionId, 10) : null,
+        })
+        data = Array.isArray(res.data)
+          ? res.data
+          : (res.data as { data?: SeededTeamResult[] })?.data ?? []
+      } else {
+        const res = await api.admin.adminSeedTeams({
+          teamNames: lines,
+        })
+        data = Array.isArray(res.data)
+          ? res.data
+          : (res.data as { data?: SeededTeamResult[] })?.data ?? []
+      }
+
+      if (data && data.length > 0) {
+        setResults(data)
         showNotification({
           color: 'teal',
           message: t('admin.success.seeded_teams', 'Successfully seeded {{count}} teams', {
-            count: res.data.data.length,
+            count: data.length,
           }),
           icon: <Icon path={mdiCheck} size={1} aria-hidden />,
         })
@@ -96,7 +134,7 @@ export const SeedTeamsModal: FC<SeedTeamsModalProps> = ({ gameId, divisions, onS
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `game-${gameId}-seeded-teams.csv`)
+    link.setAttribute('download', activeGameId ? `game-${activeGameId}-seeded-teams.csv` : 'platform-seeded-teams.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -111,7 +149,7 @@ export const SeedTeamsModal: FC<SeedTeamsModalProps> = ({ gameId, divisions, onS
         <Text fw={650} size="lg">
           {results
             ? t('admin.title.seeded_teams_results', 'Seeded Teams & Invite Codes')
-            : t('admin.title.seed_teams', 'Seed Empty Teams')}
+            : t('admin.title.seed_teams', 'Seed Teams')}
         </Text>
       }
       size={results ? 'lg' : 'md'}
@@ -121,9 +159,30 @@ export const SeedTeamsModal: FC<SeedTeamsModalProps> = ({ gameId, divisions, onS
           <Text size="sm" c="dimmed">
             {t(
               'admin.content.seed_teams_help',
-              'Create empty teams for this event. Enter one team name per line. The first person to join using the invite code will automatically become the team captain.'
+              'Create empty teams or enroll existing teams. Enter one team name per line. If a team already exists, it will be enrolled into the selected game. The first participant to join with the invite code becomes the captain.'
             )}
           </Text>
+
+          {!gameId && (
+            <Select
+              label={t('admin.label.target_game', 'Target Game')}
+              placeholder={t('admin.placeholder.select_game', 'Universal / Platform Only (or select a game)')}
+              clearable
+              data={[
+                { value: '', label: t('admin.seed_teams.universal', 'Universal / Platform Only (no game yet)') },
+                ...allGames.map((g) => ({
+                  value: g.id?.toString() ?? '',
+                  label: `${g.title || 'Game #' + g.id} (ID: ${g.id})`,
+                })),
+              ]}
+              value={selectedGameId ?? ''}
+              onChange={(val) => {
+                setSelectedGameId(val || null)
+                setDivisionId(null)
+              }}
+            />
+          )}
+
           <Textarea
             label={t('admin.label.team_names', 'Team Names (one per line)')}
             placeholder={'Team 01\nTeam 02\nTeam 03'}
@@ -134,12 +193,13 @@ export const SeedTeamsModal: FC<SeedTeamsModalProps> = ({ gameId, divisions, onS
             onChange={(e) => setTeamNamesRaw(e.currentTarget.value)}
             required
           />
-          {divisions && divisions.length > 0 && (
+
+          {effectiveDivisions.length > 0 && (
             <Select
               label={t('admin.label.games.review.division_filter', 'Division')}
               placeholder={t('admin.placeholder.select_division', 'Select division (optional)')}
               clearable
-              data={divisions.map((d) => ({ value: d.id.toString(), label: d.name }))}
+              data={effectiveDivisions.map((d) => ({ value: d.id.toString(), label: d.name }))}
               value={divisionId}
               onChange={setDivisionId}
             />

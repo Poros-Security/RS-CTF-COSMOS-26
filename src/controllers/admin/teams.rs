@@ -24,10 +24,15 @@ pub struct TeamInfoModel {
     pub avatar: Option<String>,
     pub locked: bool,
     pub members: Vec<Value>,
+    #[serde(default)]
+    pub game_ids: Vec<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invite_code: Option<String>,
 }
 
 impl From<team::Model> for TeamInfoModel {
     fn from(t: team::Model) -> Self {
+        let invite_code = Some(t.invite_code());
         Self {
             id: t.id,
             avatar: t.avatar_url(),
@@ -35,6 +40,8 @@ impl From<team::Model> for TeamInfoModel {
             bio: t.bio,
             locked: t.locked,
             members: Vec::new(),
+            game_ids: Vec::new(),
+            invite_code,
         }
     }
 }
@@ -97,6 +104,95 @@ pub async fn search_teams(
     let data = teams_with_members(st.pg(), rows).await?;
     let total = data.len() as i64;
     Ok(ArrayResponse::new(data, total))
+}
+
+/// Admin universal team seeding model.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedTeamsModel {
+    pub team_names: Vec<String>,
+}
+
+/// `POST /api/admin/teams/seed` — universal team seeding without requiring a game.
+pub async fn seed_teams(
+    State(st): State<SharedState>,
+    _admin: AdminUser,
+    Json(model): Json<SeedTeamsModel>,
+) -> AppResult<RequestResponse<Vec<crate::controllers::edit::SeededTeamResult>>> {
+    if model.team_names.is_empty() {
+        return Err(AppError::bad_request("teamNames must not be empty"));
+    }
+    if model.team_names.len() > 500 {
+        return Err(AppError::bad_request(
+            "Cannot seed more than 500 teams at once",
+        ));
+    }
+
+    let mut cleaned_names = Vec::with_capacity(model.team_names.len());
+    for raw in &model.team_names {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.len() > 64 {
+            return Err(AppError::bad_request(format!(
+                "Team name too long (max 64 chars): {trimmed}"
+            )));
+        }
+        cleaned_names.push(trimmed.to_string());
+    }
+    if cleaned_names.is_empty() {
+        return Err(AppError::bad_request("No valid team names provided"));
+    }
+
+    let mut transaction = st
+        .pg()
+        .begin()
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    let mut results = Vec::with_capacity(cleaned_names.len());
+
+    for team_name in cleaned_names {
+        let existing_team: Option<(i32, String)> =
+            sqlx::query_as(r#"SELECT id, invite_token FROM "Teams" WHERE UPPER(name) = UPPER($1)"#)
+                .bind(&team_name)
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(|e| AppError::internal(e.to_string()))?;
+
+        let (team_id, invite_token) = if let Some((tid, token)) = existing_team {
+            (tid, token)
+        } else {
+            let invite_token = crate::utils::codec::random_hex(16);
+            let team_id: i32 = sqlx::query_scalar(
+                r#"INSERT INTO "Teams"
+                     (name, bio, avatar_hash, locked, deletion_pending, invite_token, captain_id)
+                   VALUES ($1, NULL, NULL, FALSE, FALSE, $2, NULL)
+                   RETURNING id"#,
+            )
+            .bind(&team_name)
+            .bind(&invite_token)
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
+            (team_id, invite_token)
+        };
+
+        let invite_code = format!("{}:{}:{}", team_name, team_id, invite_token);
+        results.push(crate::controllers::edit::SeededTeamResult {
+            team_id,
+            team_name,
+            invite_code,
+        });
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    Ok(RequestResponse::ok(results))
 }
 
 /// `PUT /api/admin/teams/{id}` — mutate name / bio / locked.
@@ -243,6 +339,17 @@ async fn teams_with_members(
             .await
             .map_err(|error| AppError::internal(error.to_string()))?
     };
+    let game_rows: Vec<(i32, i32)> = if team_ids.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query_as(
+            r#"SELECT team_id, game_id FROM "Participations" WHERE team_id = ANY($1) ORDER BY game_id"#,
+        )
+        .bind(&team_ids)
+        .fetch_all(pool)
+        .await
+        .map_err(|error| AppError::internal(error.to_string()))?
+    };
     let mut members = HashMap::<i32, Vec<Value>>::with_capacity(team_ids.len());
     for row in rows {
         let avatar = row.avatar_hash.map(|hash| format!("/assets/{hash}/avatar"));
@@ -257,6 +364,10 @@ async fn teams_with_members(
                 "captain": row.captain,
             }));
     }
+    let mut team_games = HashMap::<i32, Vec<i32>>::with_capacity(team_ids.len());
+    for (team_id, game_id) in game_rows {
+        team_games.entry(team_id).or_default().push(game_id);
+    }
 
     Ok(teams
         .into_iter()
@@ -264,6 +375,7 @@ async fn teams_with_members(
             let team_id = team.id;
             let mut info = TeamInfoModel::from(team);
             info.members = members.remove(&team_id).unwrap_or_default();
+            info.game_ids = team_games.remove(&team_id).unwrap_or_default();
             info
         })
         .collect())
@@ -334,6 +446,11 @@ mod tests {
               user_id UUID NOT NULL,
               UNIQUE (team_id, user_id)
             );
+            CREATE TABLE "Participations" (
+              id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+              team_id INTEGER NOT NULL,
+              game_id INTEGER NOT NULL
+            );
             INSERT INTO "AspNetUsers"
                 (id, user_name, bio, avatar_hash, lockout_end)
             VALUES
@@ -351,6 +468,9 @@ mod tests {
             VALUES
                 (7, '00000000-0000-0000-0000-000000000001'),
                 (7, '00000000-0000-0000-0000-000000000002');
+            INSERT INTO "Participations" (team_id, game_id)
+            VALUES
+                (7, 42);
             "#,
         )
         .execute(&pool)
@@ -387,6 +507,11 @@ mod tests {
         );
         assert_eq!(result[0].members[1]["userName"], "member");
         assert_eq!(result[0].members[1]["captain"], false);
+        assert_eq!(result[0].game_ids, vec![42]);
+        assert_eq!(
+            result[0].invite_code.as_deref(),
+            Some("Infinite Lockouts:7:invite")
+        );
 
         pool.close().await;
         sqlx::query(&format!(r#"DROP SCHEMA "{schema}" CASCADE"#))
