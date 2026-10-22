@@ -416,7 +416,7 @@ pub async fn accept(
     let _roster_guard = crate::utils::single_flight::coalesce(&roster_key).await;
     let mut distributed =
         crate::utils::single_flight::PgAdvisoryLock::acquire(st.pg(), &roster_key).await?;
-    let team: Option<(String, String, bool, Uuid)> = sqlx::query_as(
+    let team: Option<(String, String, bool, Option<Uuid>)> = sqlx::query_as(
         r#"SELECT name, invite_token, deletion_pending, captain_id
               FROM "Teams" WHERE id = $1"#,
     )
@@ -434,7 +434,7 @@ pub async fn accept(
     if current_invite != invite_token {
         return Err(AppError::bad_request("Invalid invitation for this team"));
     }
-    let already_member: bool = captain_id == user.id
+    let already_member: bool = captain_id == Some(user.id)
         || sqlx::query_scalar::<_, bool>(
             r#"SELECT EXISTS(
                    SELECT 1 FROM "TeamMembers"
@@ -452,7 +452,7 @@ pub async fn accept(
     let member_count: i64 = sqlx::query_scalar(
         r#"SELECT COUNT(*)::bigint
               FROM (
-                    SELECT captain_id AS user_id FROM "Teams" WHERE id = $1
+                    SELECT captain_id AS user_id FROM "Teams" WHERE id = $1 AND captain_id IS NOT NULL
                     UNION
                     SELECT user_id FROM "TeamMembers" WHERE team_id = $1
               ) roster"#,
@@ -493,6 +493,25 @@ pub async fn accept(
     // membership or this request observes the durable banned fence.
     lock_live_roster_account(distributed.transaction_mut(), user.id, &user.security_stamp).await?;
 
+    let is_first_joiner = captain_id.is_none();
+    if is_first_joiner {
+        let captained: i64 =
+            sqlx::query_scalar(r#"SELECT COUNT(*)::bigint FROM "Teams" WHERE captain_id = $1"#)
+                .bind(user.id)
+                .fetch_one(&mut **distributed.transaction_mut())
+                .await
+                .map_err(|error| AppError::internal(error.to_string()))?;
+        if captained >= MAX_TEAMS_ALLOWED as i64 {
+            return Err(AppError::bad_request("Exceeded team creation limit"));
+        }
+        sqlx::query(r#"UPDATE "Teams" SET captain_id = $1 WHERE id = $2 AND captain_id IS NULL"#)
+            .bind(user.id)
+            .bind(team_id)
+            .execute(&mut **distributed.transaction_mut())
+            .await
+            .map_err(|error| AppError::internal(error.to_string()))?;
+    }
+
     // Add the caller to the roster (RSCTF `team.Members.Add(user)`).
     sqlx::query(r#"INSERT INTO "TeamMembers" (team_id, user_id) VALUES ($1, $2)"#)
         .bind(team_id)
@@ -500,15 +519,34 @@ pub async fn accept(
         .execute(&mut **distributed.transaction_mut())
         .await
         .map_err(|error| AppError::internal(error.to_string()))?;
+
+    // Auto-sync into UserParticipations for any active accepted game participations
+    sqlx::query(
+        r#"INSERT INTO "UserParticipations" (user_id, game_id, team_id, participation_id)
+           SELECT $1, participation.game_id, participation.team_id, participation.id
+             FROM "Participations" participation
+            WHERE participation.team_id = $2 AND participation.status = 0
+           ON CONFLICT (user_id, game_id) DO NOTHING"#,
+    )
+    .bind(user.id)
+    .bind(team_id)
+    .execute(&mut **distributed.transaction_mut())
+    .await
+    .map_err(|error| AppError::internal(error.to_string()))?;
     distributed.release().await?;
 
     // RSCTF `Team_UserJoined` — "Join Team {name}" (TeamController, Success).
+    let audit_msg = if is_first_joiner {
+        format!("Join Team {team_name} (as Captain)")
+    } else {
+        format!("Join Team {team_name}")
+    };
     crate::services::audit::info(
         &st,
         "TeamController",
         Some(user.name.clone()),
         None,
-        format!("Join Team {team_name}"),
+        audit_msg,
     )
     .await;
 
@@ -557,7 +595,7 @@ pub async fn leave(
     require_team_mutable(roster.transaction_mut(), id).await?;
     let team = load_team(&st, id).await?;
 
-    if team.captain_id == user.id {
+    if team.captain_id == Some(user.id) {
         return Err(AppError::bad_request(
             "Team captain must transfer captaincy before leaving",
         ));
@@ -607,7 +645,7 @@ pub async fn kick_user(
     require_captain(&team, &user)?;
 
     ensure_roster_change_allowed(roster.transaction_mut(), team.id).await?;
-    if target == team.captain_id {
+    if Some(target) == team.captain_id {
         return Err(AppError::bad_request("Cannot kick the team captain"));
     }
     if !member_ids(&st, &team).await?.contains(&target) {
@@ -677,7 +715,7 @@ async fn load_team(st: &SharedState, id: i32) -> AppResult<team::Model> {
 }
 
 fn require_captain(team: &team::Model, user: &CurrentUser) -> AppResult<()> {
-    if team.captain_id != user.id {
+    if team.captain_id != Some(user.id) {
         return Err(AppError::Forbidden);
     }
     Ok(())
@@ -690,7 +728,9 @@ async fn member_ids(st: &SharedState, team: &team::Model) -> AppResult<BTreeSet<
         .all(&st.db)
         .await?;
     let mut ids: BTreeSet<Uuid> = rows.into_iter().map(|r| r.user_id).collect();
-    ids.insert(team.captain_id);
+    if let Some(captain_id) = team.captain_id {
+        ids.insert(captain_id);
+    }
     Ok(ids)
 }
 
@@ -707,7 +747,7 @@ async fn roster(st: &SharedState, team: &team::Model) -> AppResult<Vec<TeamUserI
     Ok(users
         .into_iter()
         .map(|m| TeamUserInfoModel {
-            captain: m.id == team.captain_id,
+            captain: Some(m.id) == team.captain_id,
             avatar: m.avatar_url(),
             id: m.id,
             user_name: m.user_name,

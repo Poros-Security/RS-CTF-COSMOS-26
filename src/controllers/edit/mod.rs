@@ -689,6 +689,7 @@ pub fn router() -> Router<SharedState> {
             limited(Policy::Concurrency, post(test_discord_webhook)),
         )
         .route("/api/edit/games/{id}/purge", post(purge_game))
+        .route("/api/edit/games/{id}/seed-teams", post(seed_teams))
         .route(
             "/api/edit/games/{id}/preflight",
             get(get_image_preflight)

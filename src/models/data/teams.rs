@@ -20,7 +20,7 @@ pub mod team {
         #[serde(default, skip_serializing)]
         pub deletion_pending: bool,
         pub invite_token: String,
-        pub captain_id: Uuid,
+        pub captain_id: Option<Uuid>,
     }
 
     impl Model {

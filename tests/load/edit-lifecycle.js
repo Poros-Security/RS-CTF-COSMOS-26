@@ -162,6 +162,16 @@ export const EDIT_OPERATIONS = Object.freeze([
     responseKind: "zip",
   }),
   operation(
+    "edit_game_seed_teams",
+    "POST",
+    "/api/edit/games/{id}/seed-teams",
+    {
+      params: game,
+      mutation: true,
+      responseKind: "array",
+    },
+  ),
+  operation(
     "edit_flags_get",
     "GET",
     "/api/edit/games/{id}/challenges/{cId}/flags",

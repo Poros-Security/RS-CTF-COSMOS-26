@@ -34,7 +34,9 @@ import {
   mdiPencil,
   mdiPhoneOutline,
   mdiStar,
+  mdiPlus,
 } from '@mdi/js'
+import { SeedTeamsModal } from '@Components/admin/SeedTeamsModal'
 import { Icon } from '@mdi/react'
 import cx from 'clsx'
 import { FC, useEffect, useMemo, useState } from 'react'
@@ -275,6 +277,7 @@ const GameTeamReview: FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<ParticipationStatus | null>(null)
   const [selectedDivisionId, setSelectedDivisionId] = useState<string | null>(null)
   const [search, setSearch] = useInputState('')
+  const [seedModalOpened, setSeedModalOpened] = useState(false)
   const [debouncedSearch] = useDebouncedValue(search.trim(), 300)
   const [activePage, setPage] = useState(1)
   const [openedParticipation, setOpenedParticipation] = useState<string | null>(null)
@@ -403,6 +406,12 @@ const GameTeamReview: FC = () => {
                 value={selectedStatus}
                 onChange={(value) => setSelectedStatus(value as ParticipationStatus | null)}
               />
+              <Button
+                leftSection={<Icon path={mdiPlus} size={0.85} />}
+                onClick={() => setSeedModalOpened(true)}
+              >
+                {t('admin.button.games.seed_teams', 'Seed Teams')}
+              </Button>
             </Group>
           </Group>
         </Box>
@@ -509,6 +518,13 @@ const GameTeamReview: FC = () => {
           }}
         />
       )}
+      <SeedTeamsModal
+        opened={seedModalOpened}
+        gameId={numId}
+        divisions={divisions}
+        onClose={() => setSeedModalOpened(false)}
+        onSuccess={() => void mutateParticipationPage()}
+      />
     </WithGameEditTab>
   )
 }

@@ -274,7 +274,8 @@
       "delete": "Hapus",
       "export": "Ekspor Game",
       "import": "Impor Game",
-      "new": "Game baru"
+      "new": "Game baru",
+      "seed_teams": "Seed Tim"
     },
     "notices": {
       "delete": "Hapus",

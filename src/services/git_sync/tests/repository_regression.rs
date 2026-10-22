@@ -197,7 +197,7 @@ async fn repository_update_preserves_challenge_solves_and_refreshes_content() {
         locked: Set(false),
         deletion_pending: Set(false),
         invite_token: Set("invite".to_string()),
-        captain_id: Set(user_id),
+        captain_id: Set(Some(user_id)),
         ..Default::default()
     }
     .insert(&state.db)

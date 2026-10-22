@@ -1615,6 +1615,17 @@ export interface PostDetailModel {
 }
 
 /** Game information (Edit) */
+export interface GameSeedTeamsModel {
+  teamNames: string[];
+  divisionId?: number | null;
+}
+
+export interface SeededTeamResult {
+  teamId: number;
+  teamName: string;
+  inviteCode: string;
+}
+
 export interface GameInfoModel {
   /**
    * Game ID
@@ -7606,6 +7617,28 @@ export class Api<
     ) =>
       this.request<GameInfoModel, RequestResponse>({
         path: `/api/edit/games/${id}/purge`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Batch seed empty teams and enroll them into the event
+     *
+     * @tags Edit
+     * @name EditSeedTeams
+     * @summary Batch seed empty teams
+     * @request POST:/api/edit/games/{id}/seed-teams
+     */
+    editSeedTeams: (
+      id: number,
+      data: GameSeedTeamsModel,
+      params: RequestParams = {},
+    ) =>
+      this.request<RequestResponse<SeededTeamResult[]>, AppError>({
+        path: `/api/edit/games/${id}/seed-teams`,
         method: "POST",
         body: data,
         type: ContentType.Json,
