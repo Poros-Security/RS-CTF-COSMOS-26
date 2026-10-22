@@ -719,7 +719,7 @@ async fn locked_roster_revocation_reuses_the_existing_game_fence() {
         locked: Set(false),
         deletion_pending: Set(false),
         invite_token: Set("original-secret".to_string()),
-        captain_id: Set(user_id),
+        captain_id: Set(Some(user_id)),
         ..Default::default()
     }
     .insert(&state.db)
