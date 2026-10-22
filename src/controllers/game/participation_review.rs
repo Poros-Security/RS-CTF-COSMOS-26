@@ -105,7 +105,9 @@ pub async fn participations(
     }
     let mut member_ids: HashSet<Uuid> = roster_rows.iter().map(|row| row.user_id).collect();
     for team in teams.values() {
-        member_ids.insert(team.captain_id);
+        if let Some(captain_id) = team.captain_id {
+            member_ids.insert(captain_id);
+        }
     }
     let member_users: HashMap<Uuid, user::Model> = if member_ids.is_empty() {
         HashMap::new()
@@ -140,8 +142,10 @@ pub async fn participations(
             let mut member_user_ids = Vec::new();
             let mut seen = HashSet::new();
             if let Some(team) = team {
-                if seen.insert(team.captain_id) {
-                    member_user_ids.push(team.captain_id);
+                if let Some(captain_id) = team.captain_id {
+                    if seen.insert(captain_id) {
+                        member_user_ids.push(captain_id);
+                    }
                 }
             }
             for user_id in roster_by_team.get(&part.team_id).into_iter().flatten() {
@@ -158,7 +162,7 @@ pub async fn participations(
                 team: TeamWithDetailedUserInfo {
                     id: part.team_id,
                     locked: team.map(|team| team.locked).unwrap_or(false),
-                    captain_id: team.map(|team| team.captain_id).unwrap_or_default(),
+                    captain_id: team.and_then(|team| team.captain_id).unwrap_or_default(),
                     name: team.map(|team| team.name.clone()),
                     bio: team.and_then(|team| team.bio.clone()),
                     avatar: team.and_then(|team| team.avatar_url()),

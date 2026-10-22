@@ -270,3 +270,124 @@ async fn policy_writer_cannot_deadlock_team_accept_against_game_join() {
         .await
         .unwrap();
 }
+
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL via RSCTF_TEST_DATABASE_URL"]
+async fn seeded_team_first_joiner_becomes_captain_and_subsequent_is_member() {
+    let database_url = std::env::var("RSCTF_TEST_DATABASE_URL")
+        .expect("RSCTF_TEST_DATABASE_URL must point to a disposable PostgreSQL database");
+    let admin_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await
+        .expect("connect test database");
+    let schema = format!("rsctf_seeded_{}", Uuid::new_v4().simple());
+    sqlx::query(&format!(r#"CREATE SCHEMA "{schema}""#))
+        .execute(&admin_pool)
+        .await
+        .expect("create isolated test schema");
+    let options = PgConnectOptions::from_str(&database_url)
+        .expect("parse test database URL")
+        .options([("search_path", schema.as_str())]);
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect_with(options)
+        .await
+        .expect("connect isolated test pool");
+    sqlx::raw_sql(
+        r#"
+        CREATE TABLE "Teams" (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          captain_id UUID
+        );
+        CREATE TABLE "TeamMembers" (
+          team_id INT NOT NULL,
+          user_id UUID NOT NULL
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("create tables");
+
+    let team_id: i32 = sqlx::query_scalar(
+        r#"INSERT INTO "Teams" (name, captain_id) VALUES ('Seeded Team', NULL) RETURNING id"#,
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let user_a = Uuid::new_v4();
+    let user_b = Uuid::new_v4();
+
+    let captain_before: Option<Uuid> =
+        sqlx::query_scalar(r#"SELECT captain_id FROM "Teams" WHERE id = $1"#)
+            .bind(team_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(captain_before.is_none());
+
+    // First user becomes captain
+    sqlx::query(r#"UPDATE "Teams" SET captain_id = $1 WHERE id = $2 AND captain_id IS NULL"#)
+        .bind(user_a)
+        .bind(team_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(r#"INSERT INTO "TeamMembers" (team_id, user_id) VALUES ($1, $2)"#)
+        .bind(team_id)
+        .bind(user_a)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let captain_after_a: Option<Uuid> =
+        sqlx::query_scalar(r#"SELECT captain_id FROM "Teams" WHERE id = $1"#)
+            .bind(team_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(captain_after_a, Some(user_a));
+
+    // Second user joins
+    let captain_for_b: Option<Uuid> =
+        sqlx::query_scalar(r#"SELECT captain_id FROM "Teams" WHERE id = $1"#)
+            .bind(team_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(captain_for_b.is_some());
+    sqlx::query(r#"INSERT INTO "TeamMembers" (team_id, user_id) VALUES ($1, $2)"#)
+        .bind(team_id)
+        .bind(user_b)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let captain_after_b: Option<Uuid> =
+        sqlx::query_scalar(r#"SELECT captain_id FROM "Teams" WHERE id = $1"#)
+            .bind(team_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(captain_after_b, Some(user_a));
+
+    let members: Vec<Uuid> =
+        sqlx::query_scalar(r#"SELECT user_id FROM "TeamMembers" WHERE team_id = $1"#)
+            .bind(team_id)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(members.len(), 2);
+    assert!(members.contains(&user_a));
+    assert!(members.contains(&user_b));
+
+    pool.close().await;
+    sqlx::query(&format!(r#"DROP SCHEMA "{schema}" CASCADE"#))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
+}

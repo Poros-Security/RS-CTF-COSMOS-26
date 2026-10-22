@@ -299,7 +299,8 @@
       "delete": "Delete",
       "export": "Export Game",
       "import": "Import Game",
-      "new": "New Game"
+      "new": "New Game",
+      "seed_teams": "Seed Teams"
     },
     "notices": {
       "delete": "Delete",

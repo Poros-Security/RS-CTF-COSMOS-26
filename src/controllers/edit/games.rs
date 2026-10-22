@@ -8,6 +8,8 @@ mod discord_test;
 pub use discord_test::test_discord_webhook;
 mod update_support;
 pub(crate) use update_support::process_configuration_effects;
+mod seed_teams;
+pub use seed_teams::{seed_teams, GameSeedTeamsModel, SeededTeamResult};
 
 /// RSCTF `Models/Request/Edit/GameInfoModel` — used for both create/update
 /// (inbound) and the get/delete responses (outbound). The `start`/`end`/
