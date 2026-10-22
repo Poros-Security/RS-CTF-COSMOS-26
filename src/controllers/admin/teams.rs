@@ -118,8 +118,7 @@ pub async fn seed_teams(
     State(st): State<SharedState>,
     _admin: AdminUser,
     Json(model): Json<SeedTeamsModel>,
-) -> AppResult<RequestResponse<Vec<crate::controllers::edit::games::seed_teams::SeededTeamResult>>>
-{
+) -> AppResult<RequestResponse<Vec<crate::controllers::edit::SeededTeamResult>>> {
     if model.team_names.is_empty() {
         return Err(AppError::bad_request("teamNames must not be empty"));
     }
@@ -165,7 +164,7 @@ pub async fn seed_teams(
         let (team_id, invite_token) = if let Some((tid, token)) = existing_team {
             (tid, token)
         } else {
-            let invite_token = crate::utils::crypto::random_hex(16);
+            let invite_token = crate::utils::codec::random_hex(16);
             let team_id: i32 = sqlx::query_scalar(
                 r#"INSERT INTO "Teams"
                      (name, bio, avatar_hash, locked, deletion_pending, invite_token, captain_id)
@@ -181,13 +180,11 @@ pub async fn seed_teams(
         };
 
         let invite_code = format!("{}:{}:{}", team_name, team_id, invite_token);
-        results.push(
-            crate::controllers::edit::games::seed_teams::SeededTeamResult {
-                team_id,
-                team_name,
-                invite_code,
-            },
-        );
+        results.push(crate::controllers::edit::SeededTeamResult {
+            team_id,
+            team_name,
+            invite_code,
+        });
     }
 
     transaction
