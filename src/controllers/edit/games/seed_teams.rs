@@ -166,7 +166,6 @@ pub async fn seed_teams(
     Ok(RequestResponse::ok(results))
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -271,7 +271,6 @@ async fn policy_writer_cannot_deadlock_team_accept_against_game_join() {
         .unwrap();
 }
 
-
 #[tokio::test]
 #[ignore = "requires PostgreSQL via RSCTF_TEST_DATABASE_URL"]
 async fn seeded_team_first_joiner_becomes_captain_and_subsequent_is_member() {

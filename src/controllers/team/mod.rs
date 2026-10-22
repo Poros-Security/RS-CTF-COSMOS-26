@@ -504,14 +504,12 @@ pub async fn accept(
         if captained >= MAX_TEAMS_ALLOWED as i64 {
             return Err(AppError::bad_request("Exceeded team creation limit"));
         }
-        sqlx::query(
-            r#"UPDATE "Teams" SET captain_id = $1 WHERE id = $2 AND captain_id IS NULL"#,
-        )
-        .bind(user.id)
-        .bind(team_id)
-        .execute(&mut **distributed.transaction_mut())
-        .await
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        sqlx::query(r#"UPDATE "Teams" SET captain_id = $1 WHERE id = $2 AND captain_id IS NULL"#)
+            .bind(user.id)
+            .bind(team_id)
+            .execute(&mut **distributed.transaction_mut())
+            .await
+            .map_err(|error| AppError::internal(error.to_string()))?;
     }
 
     // Add the caller to the roster (RSCTF `team.Members.Add(user)`).
