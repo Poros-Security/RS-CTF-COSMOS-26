@@ -586,7 +586,10 @@ fn read_game_import_archive_with_limits(
         let mut entry = archive
             .by_index(index)
             .map_err(|e| AppError::bad_request(format!("ZIP read error: {e}")))?;
-        let raw_name = entry.name().to_string();
+        let raw_name = entry
+            .name()
+            .map_err(|e| AppError::bad_request(format!("ZIP entry name error: {e}")))?
+            .to_string();
         if raw_name.contains('\\') {
             return Err(AppError::bad_request(
                 "Game import path contains a backslash",

@@ -13,7 +13,7 @@ use std::path::{Component, Path, PathBuf};
 pub(crate) fn canonical_zip_entry_path<R: Read + ?Sized>(
     entry: &::zip::read::ZipFile<'_, R>,
 ) -> Option<PathBuf> {
-    let raw_name = entry.name();
+    let raw_name = entry.name().ok()?;
     if raw_name.contains('\\') {
         return None;
     }
@@ -36,7 +36,7 @@ pub(crate) fn canonical_zip_entry_path<R: Read + ?Sized>(
     } else {
         canonical.clone()
     };
-    if raw_name != expected_name || enclosed != Path::new(&canonical) {
+    if raw_name.as_ref() != expected_name || enclosed != Path::new(&canonical) {
         return None;
     }
     Some(enclosed)
