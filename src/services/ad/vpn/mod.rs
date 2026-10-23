@@ -381,6 +381,18 @@ pub fn client_mtu() -> u16 {
         .unwrap_or(1280)
 }
 
+/// WireGuard persistent keepalive interval (seconds) embedded in generated client profiles (`.conf`).
+/// Defaults to 15 seconds (instead of 25) to prevent NAT/PAT mapping eviction on mobile CGNAT
+/// and aggressive enterprise/campus firewalls.
+pub fn persistent_keepalive() -> u16 {
+    std::env::var("RSCTF_AD_VPN_PERSISTENT_KEEPALIVE")
+        .or_else(|_| std::env::var("RSCTF_AD_VPN_KEEPALIVE"))
+        .ok()
+        .and_then(|v| v.trim().parse::<u16>().ok())
+        .filter(|&v| (1..=3600).contains(&v))
+        .unwrap_or(15)
+}
+
 /// Optional WireGuard MTU configured on the server `wg0` hub interface.
 pub fn server_mtu() -> Option<u16> {
     std::env::var("RSCTF_AD_VPN_SERVER_MTU")

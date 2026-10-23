@@ -548,12 +548,26 @@ impl DistributedLimiter {
     }
 }
 
+fn redis_command_timeout() -> Duration {
+    std::env::var("RSCTF_REDIS_COMMAND_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map(Duration::from_millis)
+        .unwrap_or_else(|| {
+            if cfg!(test) {
+                Duration::from_secs(2)
+            } else {
+                REDIS_COMMAND_TIMEOUT
+            }
+        })
+}
+
 async fn redis_with_timeout(
     operation: impl Future<Output = redis::RedisResult<i64>>,
 ) -> redis::RedisResult<i64> {
     redis_with_timeout_for(
         operation,
-        REDIS_COMMAND_TIMEOUT,
+        redis_command_timeout(),
         "rate limiter Redis command timed out",
     )
     .await

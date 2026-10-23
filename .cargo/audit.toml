@@ -1,0 +1,11 @@
+# Configuration for cargo-audit (https://github.com/rustsec/rustsec/tree/main/cargo-audit)
+
+[advisories]
+ignore = [
+    # rsa 0.9.10 is retained only in Cargo.lock metadata through sqlx-mysql.
+    # It is never compiled into the binary or reachable.
+    "RUSTSEC-2023-0071",
+    # ctutils (0.4.2) non-constant-time u128 comparisons. Transitive dependency
+    # through sha2 -> digest 0.11 and crypto-bigint; pending a published crates.io patch release (>=0.4.4).
+    "RUSTSEC-2026-0385",
+]

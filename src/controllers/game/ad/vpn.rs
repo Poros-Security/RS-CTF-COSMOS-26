@@ -144,6 +144,7 @@ pub(super) async fn render_wg_config_for_game(
     let allowed_ips = merge_allowed_routes(configured_routes.as_deref(), required_routes);
 
     let client_mtu = ad_vpn::client_mtu();
+    let keepalive = ad_vpn::persistent_keepalive();
     let generated = Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
     let user_name = wireguard_comment(user_name);
     Ok(format!(
@@ -160,12 +161,13 @@ pub(super) async fn render_wg_config_for_game(
          PublicKey = {server_pub}\n\
          Endpoint = {endpoint}\n\
          AllowedIPs = {allowed_ips}\n\
-         PersistentKeepalive = 25\n",
+         PersistentKeepalive = {keepalive}\n",
         name = user_name,
         gid = game_id,
         priv_key = peer.private_key,
         address = peer.address,
         client_mtu = client_mtu,
+        keepalive = keepalive,
     ))
 }
 
@@ -228,5 +230,10 @@ mod tests {
         assert!(name
             .chars()
             .all(|character| !matches!(character, '\r' | '\n' | '\0')));
+    }
+
+    #[test]
+    fn persistent_keepalive_defaults_to_15_seconds() {
+        assert_eq!(crate::services::ad_vpn::persistent_keepalive(), 15);
     }
 }

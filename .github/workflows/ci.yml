@@ -522,7 +522,9 @@ jobs:
       - name: Audit Rust lockfile
         # rsa 0.9.10 is retained only in Cargo.lock metadata through sqlx-mysql.
         # The preceding graph check fails if that advisory ever becomes reachable.
-        run: cargo audit --ignore RUSTSEC-2023-0071
+        # RUSTSEC-2026-0385 (ctutils u128 comparisons) is an upstream transitive
+        # advisory pending a published crates.io patch release (>=0.4.4).
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0385
 
   load-harness-contracts:
     name: Load harness contracts
