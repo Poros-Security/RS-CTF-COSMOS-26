@@ -510,6 +510,7 @@ pub async fn render_user_config(
         crate::services::ad_vpn::client_cidr(),
     )?;
     let client_mtu = crate::services::ad_vpn::client_mtu();
+    let keepalive = crate::services::ad_vpn::persistent_keepalive();
     let dns = crate::services::ad_vpn::same_origin_access()
         .map_err(AppError::internal)?
         .map(|access| format!("DNS = {}\n", access.dns))
@@ -521,12 +522,13 @@ pub async fn render_user_config(
          # Personal player profile: do not share or run on multiple devices at once.\n\
          [Interface]\nPrivateKey = {private_key}\nAddress = {address}/32\nMTU = {client_mtu}\n{dns}\n\
          [Peer]\nPublicKey = {server_public_key}\nEndpoint = {endpoint}\n\
-         AllowedIPs = {allowed}\nPersistentKeepalive = 25\n",
+         AllowedIPs = {allowed}\nPersistentKeepalive = {keepalive}\n",
         game_id = part.game_id,
         private_key = peer.private_key,
         address = peer.row.address,
         client_mtu = client_mtu,
         allowed = allowed.join(", "),
+        keepalive = keepalive,
     ))
 }
 
