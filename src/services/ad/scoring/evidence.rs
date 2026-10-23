@@ -68,24 +68,22 @@ pub(super) struct EvidenceRange {
     pub event_end_settlement: bool,
 }
 
-/// Freeze the ranked team/service set from flags minted in the declared start
-/// round. A later participation or service waits for the next event rather than
-/// receiving a full epoch score from one good tick.
+/// Load the ranked team/service set for the game. Every accepted participation
+/// with active A&D services is included in the scoreboard, accumulating points
+/// from the rounds they participate in.
 pub(super) async fn load_stable_services(
     connection: &mut PgConnection,
     game_id: i32,
-    start_round: i32,
-    cutoff: Option<DateTime<Utc>>,
-    event_end_settlement: bool,
+    _start_round: i32,
+    _cutoff: Option<DateTime<Utc>>,
+    _event_end_settlement: bool,
 ) -> AppResult<Vec<StableServiceRow>> {
     sqlx::query_as::<_, StableServiceRow>(
         r#"SELECT service.id AS team_service_id,
                   service.participation_id, service.challenge_id,
                   team.id AS team_id, team.name AS team_name,
                   division.name AS division
-             FROM "AdRounds" round
-             JOIN "AdFlags" flag ON flag.round_id = round.id
-             JOIN "AdTeamServices" service ON service.id = flag.team_service_id
+             FROM "AdTeamServices" service
              JOIN "Participations" participation
                ON participation.id = service.participation_id
               AND participation.game_id = service.game_id
@@ -96,16 +94,10 @@ pub(super) async fn load_stable_services(
              JOIN "GameChallenges" challenge
                ON challenge.id = service.challenge_id
               AND challenge.game_id = service.game_id
-            WHERE round.game_id = $1 AND round.number = $2
-              AND ($3::timestamptz IS NULL OR CASE WHEN $4::boolean
-                     THEN round.start_time_utc < $3
-                     ELSE round.start_time_utc <= $3 END)
+            WHERE service.game_id = $1
             ORDER BY participation.id, challenge.id"#,
     )
     .bind(game_id)
-    .bind(start_round)
-    .bind(cutoff)
-    .bind(event_end_settlement)
     .fetch_all(&mut *connection)
     .await
     .map_err(|error| AppError::internal(error.to_string()))
@@ -189,13 +181,7 @@ pub(super) async fn load_epoch_meta(
     range: EvidenceRange,
 ) -> AppResult<Vec<EpochMetaRow>> {
     sqlx::query_as::<_, EpochMetaRow>(
-        r#"WITH stable_services AS (
-               SELECT service.id
-                 FROM "AdRounds" boundary
-                 JOIN "AdFlags" flag ON flag.round_id = boundary.id
-                 JOIN "AdTeamServices" service ON service.id = flag.team_service_id
-                WHERE boundary.game_id = $1 AND boundary.number = $2
-           ), epoch_rounds AS (
+        r#"WITH epoch_rounds AS (
                SELECT id, number, finalized,
                       ((number - $2) / $3) + 1 AS epoch
                  FROM "AdRounds"
@@ -204,20 +190,22 @@ pub(super) async fn load_epoch_meta(
                   AND ($6::timestamptz IS NULL OR CASE WHEN $8::boolean
                          THEN start_time_utc < $6
                          ELSE start_time_utc <= $6 END)
-           ), completed_checks AS (
-               SELECT result.round_id, COUNT(*)::bigint AS completed
+           ), round_checks AS (
+               SELECT result.round_id,
+                      COUNT(*)::bigint AS total_checks,
+                      COUNT(*) FILTER (
+                        WHERE result.sla_credit IS NOT NULL
+                          AND ($8::boolean OR $7::timestamptz IS NULL OR result.checked_at <= $7)
+                      )::bigint AS completed_checks
                  FROM "AdCheckResults" result
-                 JOIN stable_services stable ON stable.id = result.team_service_id
                  JOIN epoch_rounds round ON round.id = result.round_id
-                WHERE result.sla_credit IS NOT NULL
-                  AND ($8::boolean OR $7::timestamptz IS NULL OR result.checked_at <= $7)
                 GROUP BY result.round_id
            ), round_completion AS (
                SELECT round.*,
-                      COALESCE(checks.completed, 0) =
-                        (SELECT COUNT(*) FROM stable_services) AS checks_complete
+                      COALESCE(checks.total_checks, 0) > 0
+                        AND checks.completed_checks = checks.total_checks AS checks_complete
                  FROM epoch_rounds round
-                 LEFT JOIN completed_checks checks ON checks.round_id = round.id
+                 LEFT JOIN round_checks checks ON checks.round_id = round.id
            ), current_round AS (
                SELECT COALESCE(MAX(number), 0)::integer AS number
                  FROM "AdRounds"
@@ -273,19 +261,11 @@ pub(super) async fn load_epoch_evidence(
                   AND ($6::timestamptz IS NULL OR CASE WHEN $9::boolean
                          THEN start_time_utc < $6
                          ELSE start_time_utc <= $6 END)
-           ), official_start_round AS (
-               SELECT id
-                 FROM "AdRounds"
-                WHERE game_id = $1 AND number = $2
-                  AND ($6::timestamptz IS NULL OR CASE WHEN $9::boolean
-                         THEN start_time_utc < $6
-                         ELSE start_time_utc <= $6 END)
            ), stable_services AS (
-               SELECT service.id, service.participation_id, service.challenge_id,
-                      flag.service_weight
-                 FROM official_start_round
-                 JOIN "AdFlags" flag ON flag.round_id = official_start_round.id
-                 JOIN "AdTeamServices" service ON service.id = flag.team_service_id
+               SELECT DISTINCT ON (service.id)
+                      service.id, service.participation_id, service.challenge_id,
+                      COALESCE(flag.service_weight, 1.0) AS service_weight
+                 FROM "AdTeamServices" service
                  JOIN "Participations" participation
                    ON participation.id = service.participation_id
                   AND participation.game_id = service.game_id
@@ -293,6 +273,10 @@ pub(super) async fn load_epoch_evidence(
                  JOIN "GameChallenges" challenge
                    ON challenge.id = service.challenge_id
                   AND challenge.game_id = service.game_id
+                 LEFT JOIN "AdFlags" flag
+                   ON flag.team_service_id = service.id
+                WHERE service.game_id = $1
+                ORDER BY service.id, flag.round_id DESC
            ), stable_participants AS (
                SELECT DISTINCT challenge_id, participation_id FROM stable_services
            ), roster_sizes AS (

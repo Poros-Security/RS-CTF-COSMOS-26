@@ -525,6 +525,12 @@ pub(crate) async fn persist_game_join_locked(
             part_id,
         )
         .await?;
+        crate::services::ad::late_roster::admit_late_ad_participation(
+            transaction,
+            mutation.game_id,
+            part_id,
+        )
+        .await?;
     }
 
     // Also repair a legacy dangling rejected link, but only after the exact

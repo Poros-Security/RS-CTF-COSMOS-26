@@ -139,6 +139,114 @@ pub(crate) async fn admit_late_koth_participation(
     Ok(true)
 }
 
+/// Add a newly accepted participation to an existing official A&D roster.
+///
+/// The caller owns the per-game advisory lock. Existing epoch rollups receive
+/// explicit zero rows so joining late never erases the cost of the rounds that
+/// were already played. A game where A&D scoring has not started yet will include
+/// the new accepted participation during normal cycle startup.
+pub(crate) async fn admit_late_ad_participation(
+    connection: &mut sqlx::PgConnection,
+    game_id: i32,
+    participation_id: i32,
+) -> AppResult<bool> {
+    let scoring_start_round: Option<Option<i32>> = sqlx::query_scalar(
+        r#"SELECT ad_scoring_start_round
+             FROM "Games"
+            WHERE id = $1
+            FOR SHARE"#,
+    )
+    .bind(game_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|error| AppError::internal(error.to_string()))?;
+
+    let Some(Some(_)) = scoring_start_round else {
+        return Ok(false);
+    };
+
+    // Ensure placeholders exist for the new team.
+    super::service_lifecycle::ensure_scoring_placeholders(&mut *connection, game_id).await?;
+
+    // Preserve the event-from-start denominator for the overall A&D score.
+    // Insert zero rows for existing materialized epochs into AdEpochTeamRollups.
+    sqlx::query(
+        r#"INSERT INTO "AdEpochTeamRollups"
+             (game_id, epoch, participation_id, points, epoch_weight,
+              cumulative_points_numerator, cumulative_epoch_weight,
+              cumulative_offense_numerator, cumulative_defense_numerator,
+              cumulative_sla_numerator, cumulative_rate_weight)
+           SELECT rollup.game_id, rollup.epoch, $2, 0.0, rollup.epoch_weight,
+                  0.0,
+                  SUM(rollup.epoch_weight) OVER (ORDER BY rollup.epoch),
+                  0.0, 0.0, 0.0,
+                  SUM(rollup.epoch_weight * team_weights.total_weight) OVER (ORDER BY rollup.epoch)
+             FROM "AdEpochRollups" rollup
+             CROSS JOIN (
+               SELECT COALESCE(SUM(LEAST(1.2, GREATEST(0.8, challenge.ad_scoring_weight))), 0.0)::float8 AS total_weight
+                 FROM "AdTeamServices" service
+                 JOIN "GameChallenges" challenge
+                   ON challenge.id = service.challenge_id
+                  AND challenge.game_id = service.game_id
+                WHERE service.game_id = $1
+                  AND service.participation_id = $2
+                  AND challenge.is_enabled = TRUE
+                  AND challenge.review_status = 1
+                  AND challenge."Type" = 1
+             ) team_weights
+            WHERE rollup.game_id = $1
+            ORDER BY rollup.epoch
+           ON CONFLICT (game_id, epoch, participation_id) DO NOTHING"#,
+    )
+    .bind(game_id)
+    .bind(participation_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| AppError::internal(error.to_string()))?;
+
+    // Keep per-service aggregates consistent with the zero prefix.
+    sqlx::query(
+        r#"INSERT INTO "AdEpochServiceRollups"
+             (game_id, epoch, participation_id, challenge_id, service_weight,
+              opportunity_count, capture_count, rarity_sum,
+              defense_opportunity_count, protected_opportunity_count,
+              sla_credit_sum, sla_tick_count, closing_sla_status, closing_sla_credit,
+              local_points, offense_rate, defense_rate, sla_rate,
+              cumulative_points_numerator, cumulative_epoch_weight,
+              cumulative_offense_numerator, cumulative_defense_numerator,
+              cumulative_sla_numerator, cumulative_capture_count)
+           SELECT rollup.game_id, rollup.epoch, $2, service.challenge_id,
+                  LEAST(1.2, GREATEST(0.8, challenge.ad_scoring_weight)) AS service_weight,
+                  0, 0, 0.0,
+                  0, 0,
+                  0.0, 0, NULL, NULL,
+                  0.0, 0.0, 0.0, 0.0,
+                  0.0,
+                  SUM(rollup.epoch_weight) OVER (PARTITION BY service.challenge_id ORDER BY rollup.epoch),
+                  0.0, 0.0, 0.0, 0
+             FROM "AdEpochRollups" rollup
+             CROSS JOIN "AdTeamServices" service
+             JOIN "GameChallenges" challenge
+               ON challenge.id = service.challenge_id
+              AND challenge.game_id = service.game_id
+            WHERE rollup.game_id = $1
+              AND service.game_id = $1
+              AND service.participation_id = $2
+              AND challenge.is_enabled = TRUE
+              AND challenge.review_status = 1
+              AND challenge."Type" = 1
+            ORDER BY rollup.epoch, service.challenge_id
+           ON CONFLICT (game_id, epoch, participation_id, challenge_id) DO NOTHING"#,
+    )
+    .bind(game_id)
+    .bind(participation_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| AppError::internal(error.to_string()))?;
+
+    Ok(true)
+}
+
 #[cfg(test)]
 #[path = "late_roster_tests.rs"]
 mod tests;
