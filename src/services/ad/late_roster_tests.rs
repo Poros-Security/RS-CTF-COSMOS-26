@@ -230,7 +230,10 @@ async fn late_ad_admission_seeds_placeholders_and_backfills_zero_epochs() {
     .fetch_all(&mut connection)
     .await
     .unwrap();
-    assert_eq!(service_rollups, vec![(1, 501, 0.0, 1.0), (2, 501, 0.0, 2.0)]);
+    assert_eq!(
+        service_rollups,
+        vec![(1, 501, 0.0, 1.0), (2, 501, 0.0, 2.0)]
+    );
 
     sqlx::query("SET search_path TO public")
         .execute(&mut connection)
