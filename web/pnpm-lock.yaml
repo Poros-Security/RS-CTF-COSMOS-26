@@ -10,7 +10,7 @@ overrides:
   follow-redirects: '>=1.16.1'
   '@trivago/prettier-plugin-sort-imports>minimatch': 10.2.5
   minimatch>brace-expansion: 5.0.12
-  fast-uri: 3.1.6
+  fast-uri: 3.1.9
   '@apidevtools/json-schema-ref-parser>js-yaml': 4.3.2
   pixi.js>@xmldom/xmldom: 0.8.15
   '@xdsec/wsrx>nanoid': 5.1.16
@@ -206,8 +206,8 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
       happy-dom:
-        specifier: ^20.11.2
-        version: 20.11.2
+        specifier: ^21.0.4
+        version: 21.0.4
       oxlint:
         specifier: ^1.77.0
         version: 1.77.0
@@ -1553,8 +1553,8 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
-  happy-dom@20.11.2:
-    resolution: {integrity: sha512-7MB+bJLkxu3SowAfBJbjW+c55kNz5tkR45gu2qzrxznezhLeN5YIlJbwUgSzlGc+qWoZ8Ykg71H5ezz69xixrw==}
+  happy-dom@21.0.4:
+    resolution: {integrity: sha512-tFm+GaLBgo6o0awHnvHaNoraVo27qJ+2tZEtZ+cIa08hXbeitrxAJajLI05hsUy/2/YTKcUjQYzHe5mCcraLBw==}
     engines: {node: '>=20.0.0'}
 
   has-symbols@1.1.0:
@@ -3703,7 +3703,7 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  happy-dom@20.11.2:
+  happy-dom@21.0.4:
     dependencies:
       '@types/node': 22.13.14
       '@types/whatwg-mimetype': 3.0.2
