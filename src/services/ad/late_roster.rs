@@ -1,5 +1,6 @@
 //! Append-only admission of a team after official KotH scoring has started.
 
+use crate::utils::enums::{ChallengeReviewStatus, ChallengeType};
 use crate::utils::error::{AppError, AppResult};
 
 /// Add a newly accepted participation to an existing official KotH roster.
@@ -150,6 +151,18 @@ pub(crate) async fn admit_late_ad_participation(
     game_id: i32,
     participation_id: i32,
 ) -> AppResult<bool> {
+    let ad_tables_exist: bool = sqlx::query_scalar(
+        r#"SELECT to_regclass('"Games"') IS NOT NULL
+                  AND to_regclass('"AdEpochRollups"') IS NOT NULL"#,
+    )
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(|error| AppError::internal(error.to_string()))?;
+
+    if !ad_tables_exist {
+        return Ok(false);
+    }
+
     let scoring_start_round: Option<Option<i32>> = sqlx::query_scalar(
         r#"SELECT ad_scoring_start_round
              FROM "Games"
@@ -191,8 +204,8 @@ pub(crate) async fn admit_late_ad_participation(
                 WHERE service.game_id = $1
                   AND service.participation_id = $2
                   AND challenge.is_enabled = TRUE
-                  AND challenge.review_status = 1
-                  AND challenge."Type" = 1
+                  AND challenge.review_status = $3
+                  AND challenge."Type" = $4
              ) team_weights
             WHERE rollup.game_id = $1
             ORDER BY rollup.epoch
@@ -200,6 +213,8 @@ pub(crate) async fn admit_late_ad_participation(
     )
     .bind(game_id)
     .bind(participation_id)
+    .bind(ChallengeReviewStatus::Active as i16)
+    .bind(ChallengeType::AttackDefense as i16)
     .execute(&mut *connection)
     .await
     .map_err(|error| AppError::internal(error.to_string()))?;
@@ -233,13 +248,15 @@ pub(crate) async fn admit_late_ad_participation(
               AND service.game_id = $1
               AND service.participation_id = $2
               AND challenge.is_enabled = TRUE
-              AND challenge.review_status = 1
-              AND challenge."Type" = 1
+              AND challenge.review_status = $3
+              AND challenge."Type" = $4
             ORDER BY rollup.epoch, service.challenge_id
            ON CONFLICT (game_id, epoch, participation_id, challenge_id) DO NOTHING"#,
     )
     .bind(game_id)
     .bind(participation_id)
+    .bind(ChallengeReviewStatus::Active as i16)
+    .bind(ChallengeType::AttackDefense as i16)
     .execute(&mut *connection)
     .await
     .map_err(|error| AppError::internal(error.to_string()))?;

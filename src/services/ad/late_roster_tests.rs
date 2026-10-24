@@ -200,7 +200,7 @@ async fn late_ad_admission_seeds_placeholders_and_backfills_zero_epochs() {
         );
         INSERT INTO "Games" VALUES (42, 1);
         INSERT INTO "Participations" VALUES (101, 42, 1);
-        INSERT INTO "GameChallenges" VALUES (501, 42, TRUE, 1, 1, 1.0);
+        INSERT INTO "GameChallenges" VALUES (501, 42, TRUE, 0, 4, 1.0);
         INSERT INTO "AdEpochRollups" VALUES (42, 1, 1.0), (42, 2, 1.0);
         "#,
     )

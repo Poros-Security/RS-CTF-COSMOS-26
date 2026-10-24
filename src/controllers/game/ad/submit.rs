@@ -862,13 +862,11 @@ async fn submit_one(
         return Ok(SubmitOneResult::without_broadcast((status, planted)));
     };
 
-    // The INSERT result carries the complete live event shape. FirstBlood is
-    // victim-participation + challenge scoped, matching RSCTF's defending-team
-    // laser semantics even when a challenge has multiple service rows. Like the
-    // former COUNT, concurrent distinct captures may both label FirstBlood; this
-    // is cosmetic, while AdAttacks dedup and constant epoch scoring are unaffected.
+    // The INSERT result carries the complete live event shape. Challenge FirstBlood
+    // triggers the game-wide first blood notice & cinematic, while subsequent solves
+    // are Normal attacks. Defending-team service captures score epoch aggregates.
     if inserted.broadcast_ok {
-        let blood = if inserted.first_blood {
+        let blood = if inserted.challenge_first_blood {
             "FirstBlood"
         } else {
             "Normal"
