@@ -34,6 +34,7 @@ import { createFxRenderer } from './fxRenderer'
 import { createFzRenderer } from './fzRenderer'
 import { createJeopRenderer } from './jeopRenderer'
 import { KothDirector, statusFromCheck, type CaptureResult } from './kothCapture'
+import { teamSvcPos } from '@Utils/arenaAttack'
 import { createWinRenderer } from './winRenderer'
 
 const FONTS_HREF =
@@ -1527,9 +1528,14 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
       if (vic) {
         renderSvc(vic)
         pulseBase(vic, vic.color)
+        const target = teamSvcPos(vic, svc)
+        fxq.push({ kind: 'shield', x: target.x, y: target.y, col: atkr.color, t: 0, dur: 0.6 })
       }
-      floatText(atkr.x, atkr.y - 66, vic ? 'CAPTURE ACCEPTED' : pts > 0 ? '+' + pts : 'SOLVED', atkr.color)
-      if (vic) floatText(vic.x, vic.y - 66, isFB ? 'FIRST BLOOD' : 'PWNED', vic.color)
+      floatText(atkr.x, atkr.y - 66, vic ? 'FLAG ACC' : pts > 0 ? '+' + pts : 'SOLVED', atkr.color)
+      if (vic) {
+        const target = teamSvcPos(vic, svc)
+        floatText(target.x, target.y - 18, isFB ? 'FIRST BLOOD' : 'PWNED', '#ff3b5b')
+      }
       if (isFB)
         addLog(
           'FIRST BLOOD',
@@ -1736,6 +1742,8 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
   function fbAd(atkr: any, vic: any, chalName: string, onImpact: () => void) {
     const oppN = vic ? vic.name : 'THE FIELD',
       oppC = vic ? vic.color : '#ff3b5b'
+    const svc = vic?.svc?.find((s: any) => s.name === chalName) || (vic ? pick(vic.svc) : null)
+    const target = vic ? teamSvcPos(vic, svc) : { x: CX, y: CY }
     fbCinematic(atkr, {
       kind: 'ad',
       oppName: oppN,
@@ -1743,7 +1751,7 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
       oppPortrait: vic ? avatar(vic.look, vic.color) : '',
       sub: `<span style="color:${atkr.color}">${esc(atkr.name)}</span> &nbsp;&#9656;&nbsp; <span style="color:${oppC}">${esc(oppN)}</span>`,
       chal: chalName,
-      beamTo: vic || { x: CX, y: CY },
+      beamTo: target,
       onImpact,
     })
   }
@@ -2536,17 +2544,18 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
     const atkr = teamByName(f.teamName)
     if (!atkr) return
     const vic = f.victimTeamName ? teamByName(f.victimTeamName) : null
-    // Rejected flag (wrong answer): a soft "MISS" tracer (jeopardy aims at the CORE),
+    let svc: any = null
+    if (vic) svc = vic.svc.find((s: any) => s.name === f.challengeTitle) || pick(vic.svc)
+    // Rejected flag (wrong answer): a soft "MISS" tracer (aimed at the targeted flag or core),
     // no score, no impact, not logged. Capped so a flag-spam burst can't flood.
     if (f.type === 'Unaccepted') {
       if (!frozen && shots.filter((s: any) => s.miss).length < 6) {
-        fireShot(atkr, vic || { x: CX, y: CY }, MISS_COL, true)
+        const target = vic ? teamSvcPos(vic, svc) : { x: CX, y: CY }
+        fireShot(atkr, target, MISS_COL, true)
         snd.sfxMiss()
       }
       return
     }
-    let svc: any = null
-    if (vic) svc = vic.svc.find((s: any) => s.name === f.challengeTitle) || pick(vic.svc)
     let pts = 0
     // A&D scores are epoch aggregates and never move directly from a feed event.
     // Jeopardy may include its authoritative post-solve team score; otherwise the
@@ -2554,7 +2563,11 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
     if (!vic && f.teamScore != null) pts = Math.max(0, Math.round(f.teamScore) - (atkr.jpScore || 0))
     const isFB = f.type === 'FirstBlood'
     if (isFB) {
-      if (vic) fireShot(atkr, vic, atkr.color)
+      if (vic) {
+        const target = teamSvcPos(vic, svc)
+        spawnBeam(atkr, target, atkr.color, false)
+        fireShot(atkr, target, atkr.color)
+      }
       if (cinema) {
         pendingResolves++
         ownedTimeout(
@@ -2573,7 +2586,7 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
       else fbJeopardy(atkr, f.challengeTitle || 'a challenge', () => resolveFlag(atkr, null, null, pts, true))
       return
     }
-    // normal solve — A&D shoots the victim; a jeopardy solve lasers the actual
+    // normal solve — A&D shoots the victim's flag; a jeopardy solve lasers the actual
     // challenge star in the constellation (falls back to the CORE if not mapped).
     // Burst overflow (e.g. a 256-deep WS catch-up): resolve quietly & synchronously —
     // capture evidence stays live, but skip tracer/audio/timers so we don't flood.
@@ -2581,8 +2594,11 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
       resolveFlag(atkr, vic, svc, pts, false, true)
       return
     }
-    if (vic) fireShot(atkr, vic, atkr.color)
-    else {
+    if (vic) {
+      const target = teamSvcPos(vic, svc)
+      spawnBeam(atkr, target, atkr.color, false)
+      fireShot(atkr, target, atkr.color)
+    } else {
       if (!jeop.solveByTitle(atkr.x, atkr.y, f.challengeTitle || '', { name: atkr.name, color: atkr.color }))
         fireShot(atkr, { x: CX, y: CY }, atkr.color)
       if (!frozen) snd.sfxSolve()
@@ -2916,7 +2932,9 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
     while (vic === atkr && g++ < 10) vic = pick(TEAMS)
     if (vic === atkr) return
     const svc = pick(vic.svc.filter((s: any) => s.status !== 'down')) || pick(vic.svc)
-    fireShot(atkr, vic, atkr.color)
+    const target = teamSvcPos(vic, svc)
+    spawnBeam(atkr, target, atkr.color, false)
+    fireShot(atkr, target, atkr.color)
     ownedTimeout(
       () => {
         if (!killed) resolveFlag(atkr, vic, svc, 0, false)
