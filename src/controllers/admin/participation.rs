@@ -297,6 +297,12 @@ async fn persist_participation_status(
             identity.id,
         )
         .await?;
+        crate::services::ad::late_roster::admit_late_ad_participation(
+            &mut transaction,
+            identity.game_id,
+            identity.id,
+        )
+        .await?;
     }
     if requested_status == ParticipationStatus::Accepted {
         crate::controllers::team::roster_policy::lock_team_on_accept_if_enabled(

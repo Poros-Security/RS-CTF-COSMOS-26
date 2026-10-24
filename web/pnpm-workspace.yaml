@@ -40,7 +40,7 @@ overrides:
   "@trivago/prettier-plugin-sort-imports>minimatch": "10.2.5"
   "minimatch>brace-expansion": "5.0.12"
   # Patch the OpenAPI generator's AJV URI parser against host confusion.
-  fast-uri: "3.1.6"
+  fast-uri: "3.1.9"
   # Patch OpenAPI YAML merge CPU limits (GHSA-2883-xcg3-v3hh).
   "@apidevtools/json-schema-ref-parser>js-yaml": "4.3.2"
   # Keep Pixi's XML parser on its existing patch branch with the security fixes.
@@ -74,3 +74,4 @@ minimumReleaseAgeExclude:
   - brace-expansion@5.0.10
   - dompurify@3.4.16
   - dompurify@3.4.17
+  - happy-dom@21.0.4

@@ -1237,7 +1237,7 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
       cx: cx + (px / len) * bow,
       cy: cy + (py / len) * bow,
       t: 0,
-      sp: rng(0.018, 0.028) * speed,
+      sp: rng(0.032, 0.040) * speed,
       col,
       miss,
       trail: [],
@@ -1721,6 +1721,7 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
       }, FB.slam)
       ownedTimeout(() => {
         if (opt.beamTo) {
+          slamCovering = false
           spawnBeam(atkr, opt.beamTo, th.accent, true)
           if (opt.beamTo.id && opt.beamTo.color) pulseBase(opt.beamTo, opt.beamTo.color)
         }
@@ -2553,8 +2554,16 @@ function runArena(root: ShadowRoot, gameId: string, preview: boolean): () => voi
     if (!vic && f.teamScore != null) pts = Math.max(0, Math.round(f.teamScore) - (atkr.jpScore || 0))
     const isFB = f.type === 'FirstBlood'
     if (isFB) {
+      if (vic) fireShot(atkr, vic, atkr.color)
       if (cinema) {
-        resolveFlag(atkr, vic, svc, pts, true)
+        pendingResolves++
+        ownedTimeout(
+          () => {
+            pendingResolves--
+            if (!killed) resolveFlag(atkr, vic, svc, pts, true)
+          },
+          Math.round(320 / speed + 120)
+        )
         return
       }
       if (vic)
